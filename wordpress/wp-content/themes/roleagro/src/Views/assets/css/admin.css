@@ -1,0 +1,15 @@
+#aplicar-filtro-roteiros {
+    background-color: #db7146;
+    color: #fff;
+    border: none;
+}
+
+.acf-switch.-on {
+    background: #6cca47 !important;
+    border-color: #00ba38 !important;
+}
+
+.acf-switch, .acf-switch:hover, .acf-switch.-focus {
+    background: #6cca47 !important;
+    color: #ffffff !important;
+}

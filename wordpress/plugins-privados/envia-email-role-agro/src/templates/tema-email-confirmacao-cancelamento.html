@@ -1,0 +1,43 @@
+<html>
+    <head>
+        <style>
+            body { font-family: Arial, sans-serif; color: #333; }
+            .container { background-color: #f9f9f9; padding: 20px; border: 1px solid #ddd; }
+            .dado { margin: 10px 0 20px 0; }
+            .espaco { padding-top: 18px; }
+            .lista { line-height: 2rem; }
+            .destaque { font-weight: 600; color: #87AE27; font-size: 1rem; margin-top: 30px; }
+            .rodape { margin-top: 4rem; }
+            .rodape .destaque { color: #005C2C; }
+            .rodape #logomarcas { display: flex; justify-content: start; align-items: center; }
+            .rodape #logomarcas img { margin-right: 5px; padding: 1.2rem 0; max-width: 15%; }
+        </style>
+    </head>
+    <body>
+        <div class='container'>
+            <p class='dado'>Prezado(a) Diretor(a) da {UNIDADE_ESCOLAR}.</p>
+            <p class='espaco'>Cancelamos seu agendamento do Rolê:</p>
+            <p class="destaque">{TITULO_ROTEIRO}</p>
+            <p class='espaco lista'>
+                <strong>Na Data:</strong> {DATA_ROTEIRO}<br>
+                <strong>Tipo de Roteiro:</strong> {TIPO_ROTEIRO}<br>
+            </p>
+            <p class='espaco'>
+                Caso as turmas selecionadas neste roteiro não tenham realizado outro Rolê,
+                será possível realizar um novo agendamento para este ou outro roteiro em uma nova data.
+            </p>
+
+            <div class="rodape">
+                <p class="destaque">
+                    Atenciosamente<br>
+                    Equipe Rolê Agroecológico
+                </p>
+                <br>
+                <br>
+                <div id="logomarcas">
+                    {IMAGENS_RODAPE}
+                </div>
+            </div>
+        </br>
+    </body>
+</html>

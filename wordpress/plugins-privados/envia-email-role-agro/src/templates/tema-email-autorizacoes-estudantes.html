@@ -1,0 +1,52 @@
+<html>
+    <head>
+        <style>
+            body { font-family: Arial, sans-serif; color: #333; }
+            a { color: #288336; font-weight: 600;}
+            .container { background-color: #f9f9f9; padding: 20px; border: 1px solid #ddd; }
+            .dado { margin: 10px 0 20px 0; }
+            .espaco { padding-top: 18px; }
+            .lista { line-height: 1.7rem; }
+            .destaque { font-weight: 600; color: #87AE27; font-size: 1rem; margin-top: 5px;}
+            .rodape { margin-top: 3rem; }
+            .verde-escuro { color: #005C2C; }
+            .rodape #logomarcas { display: flex; justify-content: start; align-items: center; }
+            .rodape #logomarcas img { margin-right: 5px; padding: 1.2rem 0; max-width: 15%; }
+        </style>
+    </head>
+    <body>
+        <div class='container'>
+            <div class='dado'>Prezado(a) Diretor(a) da {UNIDADE_ESCOLAR}</div>
+            <p class='espaco'>
+                Em anexo encaminhamos as <strong>autorizações nominais</strong> dos estudantes selecionados,
+                solicitamos a impressão e <strong>entrega aos pais e responsáveis para assinatura.</strong>
+            </p>
+            <p class="destaque">{TITULO_ROTEIRO}</p>
+            <p class='espaco lista'>
+                <strong>Data:</strong> {DATA_ROTEIRO}<br>
+                <strong>Tipo de Roteiro:</strong> {TIPO_ROTEIRO}<br>
+                <strong>Horário de saída da UE:</strong> {HORA_SAIDA}<br>
+                <strong>Horário previsto para retorno a UE:</strong> {HORA_RETORNO}<br>
+            </p>
+            
+            <p class="espaco">
+                As autorizações <strong>preenchidas e assinadas devem ser enviadas,</strong> pelo <a href="#">portal do Rolê</a>,
+                em <strong>até 15 dias antes da data do passeio,</strong> para conferência da equipe organizadora.
+            </p>
+
+            <p class='espaco'>
+                <strong>Alterações e cancelamentos</strong> no agendamento, podem ser realizadas <strong>até 7 dias antes da data do passeio</strong> 
+                em <a href="#">sua área de agendamentos no portal do Rolê</a>
+            </p>
+            <br>
+            <p class="destaque verde-escuro">Agradecemos seu agendamento e desejamos um ótimo passeio.</p>
+            
+            <div class="rodape">
+                <p class="destaque verde-escuro">Atenciosamente Equipe Rolê Agroecológico</p>
+                <div id="logomarcas">
+                    {IMAGENS_RODAPE}
+                </div>
+            </div>
+        </br>
+    </body>
+</html>

@@ -1,0 +1,25 @@
+FROM wordpress:6.8.2-php8.4-fpm as base
+
+RUN apt-get update && \
+    apt-get install -y rsync && \
+    rm -rf /var/lib/apt/lists/*
+
+COPY php/docker-entrypoint.sh /usr/local/bin/
+COPY php/php-prod-wordpress.ini /usr/local/etc/php/conf.d/zz-wordpress-custom.ini
+COPY php/php-prod.ini /usr/local/etc/php/php.ini
+COPY php/fpm-prod.conf /usr/local/etc/php-fpm.d/www.conf
+COPY --chown=www-data:www-data wordpress/wp-content/themes /usr/src/wordpress/wp-content/themes
+COPY --chown=www-data:www-data wordpress/plugins-privados /tmp/plugins-privados
+
+RUN chmod -R 755 /var/www/html/wp-content/themes
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+
+FROM owasp/modsecurity-crs:3.3-apache as apache
+
+COPY --from=base /usr/src/wordpress/ /var/www/html
+
+COPY apache/httpd.conf /usr/local/apache2/conf/httpd.conf
+COPY apache/apache-fastcgi.conf /usr/local/apache2/conf/extra/fastcgi.conf
+COPY modsecurity/activate-rules.sh /opt/modsecurity/activate-rules.sh
+COPY modsecurity/setup.conf /etc/modsecurity.d/setup.conf
+COPY .htaccess /var/www/html/.htaccess

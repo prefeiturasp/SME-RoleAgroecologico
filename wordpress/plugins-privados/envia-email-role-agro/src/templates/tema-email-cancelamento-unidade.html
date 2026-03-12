@@ -1,0 +1,41 @@
+<html>
+    <head>
+        <style>
+            body { font-family: Arial, sans-serif; color: #333; }
+            .container { background-color: #f9f9f9; padding: 20px; border: 1px solid #ddd; }
+            .dado { margin: 10px 0 20px 0; }
+            .espaco { padding-top: 18px; }
+            .lista { line-height: 2rem; }
+            .destaque { font-weight: 600; color: #87AE27; font-size: 1rem; margin-top: 30px; }
+            .rodape { margin-top: 4rem; }
+            .rodape .destaque { color: #005C2C; }
+            .rodape #logomarcas { display: flex; justify-content: start; align-items: center; }
+            .rodape #logomarcas img { margin-right: 5px; padding: 1.2rem 0; max-width: 15%; }
+        </style>
+    </head>
+    <body>
+        <div class='container'>
+            <p class='dado'>Prezado(a) Produtor(a),</p>
+            <p class='espaco'>O Rolê agendado para:</p>
+            <p class='lista'>
+                <strong>Data:</strong> {DATA_ROTEIRO}<br>
+                <strong>Tipo de Roteiro:</strong> {TIPO_ROTEIRO}<br>
+            </p>
+            <p class='espaco'>Foi cancelado em virtude da indisponibilidade da Unidade Educacional.</p>
+            <p class="espaco">Qualquer dúvida estamos a disposição.</p>
+            <p class="espaco">Agradecemos sua disponibilidade em participar do Rolê Agroecológico.</p>
+
+            <div class="rodape">
+                <p class="destaque">
+                    Atenciosamente<br>
+                    Equipe Rolê Agroecológico
+                </p>
+                <br>
+                <br>
+                <div id="logomarcas">
+                    {IMAGENS_RODAPE}
+                </div>
+            </div>
+        </br>
+    </body>
+</html>

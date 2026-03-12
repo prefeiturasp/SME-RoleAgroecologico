@@ -1,0 +1,6 @@
+apiVersion: v2
+name: role-agroecologico
+description: Helm para stack wordpress SME - Role Agroecologico
+type: application
+version: 0.1.0
+appVersion: "1.0"

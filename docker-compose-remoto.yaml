@@ -1,0 +1,118 @@
+#############################
+#  APACHE + MODSECURITY + PHP-FPM + MARIADB
+#  🔥 SME WORDPRESS
+#############################
+
+services:
+  #############################
+  #  APACHE + MODSECURITY (IMAGEM OFICIAL OWASP)
+  #############################
+  apache-waf:
+    build:
+      context: .
+      dockerfile: Dockerfile.development
+      target: apache
+    image: wordpress/roleagroecologico-waf
+    container_name: apache_modsec_wordpress
+    restart: unless-stopped
+    ports:
+      - "8088:8080"
+    volumes:
+      - ./nfs:/var/www/html/wp-content/uploads
+    environment:
+      #############################
+      #  MODSECURITY + CRS CONFIG
+      #############################
+      # Backend para proxy reverso
+      PHPFPM_SOCK_PATH: "wordpress-fpm:9000"
+      SSL_ENGINE: "Off"
+      PORT: 8080
+      ENABLE_WORDPRESS_EXCLUSIONS: 1
+      METRICS_ALLOW_FROM: "127.0.0.1/8 ::1/128 10.0.0.0/8 172.16.0.0/12 192.168.0.0/16"
+      # ModSecurity engine
+      MODSEC_RULE_ENGINE: "DetectionOnly"
+      #MODSEC_RULE_ENGINE: "On"
+      MODSEC_REQ_BODY_ACCESS: "On"
+      MODSEC_REQ_BODY_LIMIT: 268435456
+      MODSEC_RESP_BODY_ACCESS: "On"      
+      # OWASP CRS settings
+      PARANOIA: 1
+      ANOMALY_INBOUND: 5
+      ANOMALY_OUTBOUND: 4      
+      TZ: America/Sao_Paulo
+    depends_on:
+      - wordpress-fpm
+    networks:
+      - wordpress_network
+
+  #############################
+  #  WORDPRESS PHP-FPM
+  #############################
+  wordpress-fpm:
+    build: 
+      context: .
+      dockerfile: Dockerfile.development
+      target: base
+    image: wordpress/roleagroecologico
+    container_name: wordpress_fmp
+    restart: unless-stopped
+    volumes:
+      - ./nfs:/var/www/html/wp-content/uploads
+    environment:
+      #############################
+      #  WORDPRESS
+      #############################
+      WORDPRESS_DB_HOST: 10.50.1.27:3306
+      WORDPRESS_DB_NAME: ${WP_DB_NAME}
+      WORDPRESS_DB_USER: ${WP_DB_USER}
+      WORDPRESS_DB_PASSWORD: ${DB_PASSWORD}
+      
+      # Variáveis de ambiente API CoreSSO
+      SMEINTEGRACAO_API_URL: ${URL_API}
+      SMEINTEGRACAO_API_TOKEN: ${URL_TOKEN}
+      
+      # Security Keys
+      WORDPRESS_AUTH_KEY: ${WP_AUTH_KEY}
+      WORDPRESS_SECURE_AUTH_KEY: ${WP_SECURE_AUTH_KEY}
+      WORDPRESS_LOGGED_IN_KEY: ${WP_LOGGED_IN_KEY}
+      WORDPRESS_NONCE_KEY: ${WP_NONCE_KEY}
+      WORDPRESS_AUTH_SALT: ${WP_AUTH_SALT}
+      WORDPRESS_SECURE_AUTH_SALT: ${WP_SECURE_AUTH_SALT}
+      WORDPRESS_LOGGED_IN_SALT: ${WP_LOGGED_IN_SALT}
+      WORDPRESS_NONCE_SALT: ${WP_NONCE_SALT}
+      
+      WORDPRESS_TABLE_PREFIX: dev_wp_
+      WORDPRESS_DEBUG: "false"
+      WORDPRESS_CONFIG_EXTRA: |
+        define('FORCE_SSL_ADMIN', false);
+        define('WP_MEMORY_LIMIT', '1G');
+        define('WP_HOME','http://localhost:8088');
+        define('WP_SITEURL','http://localhost:8088');
+        define('WP_MAX_MEMORY_LIMIT', '1G');
+        define('WP_POST_REVISIONS', 5);
+        define('AUTOSAVE_INTERVAL', 600);
+        define('DISALLOW_FILE_EDIT', true);
+        define('DISALLOW_FILE_MODS', false);
+        define('WP_CACHE', true);
+        define('FS_METHOD', 'direct');
+        define('WPLANG', 'pt_BR');
+        if ( function_exists('update_option') ) {
+          update_option('timezone_string', 'America/Sao_Paulo');
+        }
+      
+      TZ: America/Sao_Paulo
+    networks:
+      - wordpress_network
+
+#############################
+#  VOLUMES
+#############################
+volumes:
+  wordpress_data:
+    driver: local
+
+#############################
+#  REDE
+#############################
+networks:
+  wordpress_network:

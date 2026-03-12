@@ -1,0 +1,68 @@
+* {margin: 0;padding: 0; box-sizing: border-box; font-family: 'Roboto', sans-serif;}
+body.page-login {background: url('../img/fundo-login-roleagroecologico.jpg') no-repeat center center fixed !important;background-size: cover !important;color: #333 !important;}
+.top-bar {background-color: #333;color: #fff;display: flex;justify-content: space-between;padding: 5px 20px;font-size: 14px; margin: 0;}
+.top-bar a {color: #fff;text-decoration: none;margin-right: 15px;}
+.banner {background-color: rgba(255, 255, 255, 50%);padding: 15px 20px;display: flex;justify-content: space-between;align-items: center;flex-wrap: wrap;}
+.banner-logos img {height: 150px;margin-right: 15px;}
+.btn-voltar {background-color: #0b6e4f;color: white;padding: 10px 20px;border-radius: 999px;text-decoration: none;font-weight: bold;}
+.box-login {display: flex;justify-content: flex-end;align-items: center;height: 75vh;padding: 20px;}
+.form-box, .form-box-recupera-senha {background-color: white; padding: 30px; width: 450px;border-radius: 10px;box-shadow: 0 0 15px rgba(0,0,0,0.2);margin-top: 60px;position: relative; float: inline-end;}
+.form-box h2, .form-box-recupera-senha h2 {color: #0b6e4f;margin-bottom: 20px;font-size: 26px;}
+.form-box label, .form-box-recupera-senha label {display: block;margin-top: 15px;font-weight: bold;}
+.form-box input, .form-box-recupera-senha input {width: 100%;padding: 10px;margin-top: 5px;border-radius: 4px;border: 1px solid #ccc;}
+
+.info-text {font-size: 13px;margin-top: 10px;}
+.link-senha {font-size: 14px;color: #0077cc;}
+.btn-acessar {background-color: #0b6e4f;color: white;border: none;padding: 12px;width: 100%;margin-top: 20px;font-size: 16px;border-radius: 5px;cursor: pointer;}
+.contato {font-size: 13px;text-align: center;margin-top: 15px;}
+.contato a {color: #0b6e4f;text-decoration: none;}
+input#wp-submit { background-color: #123e11; color: #ffffff;}
+.top-links > a { color: #fff;}
+.social-tops { position: relative;float: inline-end; }
+.sem-margem {padding-right: 0 !important; padding-left: 0 !important;}
+.fundo-escuro{background-color: #000000;}
+img.logo-role{width: 120px;position: absolute;margin-top: -8px;}
+.conteudo-opcoes {background-color: #fff; margin-top: 150px; padding: 60px;}
+h2.titulo-bloco-selecao {font-weight: 600; color: #123e11;}
+button.btn-login-duplo { padding: unset !important;}
+
+@media screen and (max-width: 768px) {
+    img.logo-role {
+        width: 65px;
+    }
+    .form-box {
+        width: 100%;
+        margin-top: 100px;
+    }
+}
+
+.form-box-recupera-senha {
+    width: 550px;
+}
+
+input#btn-continua-rec-senha, #btn-voltar-rec-senha {
+    background-color: #123e11;
+    color: #ffffff;
+}
+
+#btn-cancela-rec-senha {
+    background-color: #ffffff;
+    color: #123e11;
+    border: 1px solid #123e11;
+}
+
+.alinhado-direita {
+    padding-right: 0px;
+}
+
+.img-success {
+    padding-bottom: 20px;
+}
+
+.txt-success {
+    padding: 50px 0 50px 0;
+}
+
+.alert-validacao {
+    padding: 5px 10px 5px;
+}

@@ -1,0 +1,8 @@
+{
+    "name": "jardeonjmaraujo/envia-email-role-agro",
+    "autoload": {
+        "psr-4": {
+            "EnviaEmail\\": "src/"
+        }
+    }
+}
