@@ -1,4 +1,4 @@
-FROM poc-registry.sme.prefeitura.sp.gov.br/wordpress/wp-base-apache:3.3-apache
+FROM registry.sme.prefeitura.sp.gov.br/wordpress/wp-base-apache:3.3-apache
 
 COPY apache/httpd.conf /usr/local/apache2/conf/httpd.conf
 COPY apache/apache-fastcgi.conf /usr/local/apache2/conf/extra/fastcgi.conf
