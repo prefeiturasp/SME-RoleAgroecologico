@@ -1,11 +1,11 @@
 nodeAffinity: ${AMBIENTE}
 
 apache:
-  image: "poc-registry.sme.prefeitura.sp.gov.br/${project}/${branchname}/apache:${IMAGE_TAG}"
+  image: "registry.sme.prefeitura.sp.gov.br/${project}/${branchname}/apache:${IMAGE_TAG}"
   secretRef: "apache-secrets"
 
 php:
-  image: "poc-registry.sme.prefeitura.sp.gov.br/${project}/${branchname}/php:${IMAGE_TAG}"
+  image: "registry.sme.prefeitura.sp.gov.br/${project}/${branchname}/php:${IMAGE_TAG}"
   configMapRef: "wp-configs"
   secretRef: "wp-secrets"
 
