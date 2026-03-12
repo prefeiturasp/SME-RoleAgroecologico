@@ -1,0 +1,65 @@
+/* Citrus Admin Color Scheme */
+:root {
+    --wp-admin-base-color: #094a28; /* Verde forte */
+    --wp-admin-base-sub-color: #388e3c; /* Verde mais claro */
+    --wp-admin-current-menu-color: #ffb441; /* Laranja */
+    --wp-admin-current-menu-text-color: #fff; /* Branco */
+    --wo-admin-sub-menu-color: #f5c73e; /* Amarelo */
+}
+
+body.wp-admin {
+    background-color: #fffef5;
+    color: #333;
+}
+
+/* Menus */
+#adminmenu, #adminmenu .wp-submenu, #adminmenuback, #adminmenuwrap {
+    background-color: var(--wp-admin-base-color);
+}
+
+#adminmenu a {
+    color: var(--wp-admin-current-menu-text-color);
+}
+
+#adminmenu .wp-has-current-submenu .wp-submenu,
+#adminmenu .wp-has-current-submenu .wp-submenu .wp-submenu-head {
+    background-color: var(--wp-admin-base-sub-color);
+}
+
+#adminmenu .wp-submenu a {
+    color: var(--wo-admin-sub-menu-color);
+}
+
+#adminmenu li.menu-top:hover,
+#adminmenu li.opensub > a.menu-top,
+#adminmenu .wp-has-current-submenu > a {
+    background-color: var(--wp-admin-current-menu-color);
+    color: var(--wp-admin-current-menu-text-color);
+}
+
+#adminmenu .wp-has-current-submenu .wp-submenu .wp-submenu-head, #adminmenu li.current a.menu-top, #adminmenu li.wp-has-current-submenu a.wp-has-current-submenu {
+    background: var(--wp-admin-current-menu-color);
+    color: #000000;
+}
+
+/* Barra superior */
+#wpadminbar {
+    background: var(--wp-admin-base-color);
+}
+
+#wpadminbar .ab-item, #wpadminbar a.ab-item {
+    color: var(--wp-admin-current-menu-text-color) !important;
+}
+
+.wp-menu-image:hover {
+    color: var(--wp-admin-current-menu-text-color);
+}
+
+/* Links */
+a {
+    color: #2e7d32;
+}
+
+a:hover {
+    color: #f57f17;
+}

@@ -1,0 +1,150 @@
+#calendario {
+  max-width: 100%;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  box-shadow: 0 2px 8px rgb(0 0 0 / 0.1);
+  user-select: none;
+  background: #fff;
+}
+
+.clndr {
+  display: flex;
+  flex-direction: column;
+  max-height: 100%;
+}
+
+.clndr-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  border-top: 1px solid #ddd;
+  height: 380px;
+}
+
+.header-day {
+  text-align: center;
+  font-weight: 600;
+  padding: 8px 0;
+  background-color: #f0f0f0;
+  border-bottom: 1px solid #ddd;
+  color: #555;
+  user-select: none;
+}
+
+.day {
+  text-align: center;
+  padding: 35%;
+  pointer-events: none;
+  border-bottom: 1px solid #eee;
+  border-right: 1px solid #eee;
+  user-select: none;
+  font-size: 14px;
+  line-height: 1;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+.day:nth-child(7n) {
+  border-right: none;
+}
+
+.day.adjacent-month {
+  color: transparent;
+  cursor: default;
+  background: #fafafa;
+}
+
+/* Dias bloqueados */
+.day.bloqueada {
+  background-color: #f9f9f9;
+  cursor: not-allowed;
+  text-decoration: line-through;
+}
+
+/* Dias disponíveis */
+.day.disponivel {
+  background-color: #ff8c00;
+  cursor: pointer;
+  pointer-events: all;
+}
+
+.day.disponivel:hover {
+  background-color: #e07c02ff;
+}
+
+.day.past {
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+/* Hoje */
+.day.today {
+  border: 2px solid #027e27ff;
+  pointer-events: none;
+  font-weight: 700;
+}
+
+/* Dia selecionado */
+.day.selected {
+  background-color: #027e27ff;
+  color: #FFF;
+  font-weight: bold;
+}
+
+.calendar-dow-0,
+.calendar-dow-6 {
+  background-color: #dfdfdf;
+  color: #252525;
+}
+
+.clndr-grid > .day:nth-child(7n) {
+  border-right: none;
+}
+
+.clndr-controls select {
+  display: block;
+  width: 100%;
+  height: 3rem;
+  padding: 6px 8px;
+  background-color: #005c2c;
+  color: #fff;
+  border: none;
+  font-size: 1.2rem;
+  font-weight: bold;
+  cursor: pointer;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.clndr-controls #clndr-year {
+  color: #005c2c;
+  background-color: transparent;
+}
+
+.clndr-controls #clndr-year option {
+  color: #005c2c;
+  font-weight: bold;
+  background-color: transparent;
+}
+
+.clndr-controls  #clndr-month option {
+  background-color: #005c2c;
+  color: #fff;
+  font-weight: bold;
+}
+
+@media (max-width: 400px) {
+  .clndr-controls {
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .clndr-controls select {
+    min-width: 80px;
+    font-size: 12px;
+  }
+
+  .clndr-controls button {
+    width: 28px;
+    height: 28px;
+    font-size: 16px;
+  }
+}

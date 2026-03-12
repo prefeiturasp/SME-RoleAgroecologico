@@ -1,0 +1,57 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "wp-stack.fullname" . }}
+  labels:
+    app: {{ include "wp-stack.name" . }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ include "wp-stack.name" . }}
+  template:
+    metadata:
+      labels:
+        app: {{ include "wp-stack.name" . }}
+    spec:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: ambiente
+                    operator: In
+                    values:
+                      - {{ .Values.nodeAffinity }}
+      containers:
+        - name: apache-waf
+          image: {{ .Values.apache.image }}
+          ports:
+            - containerPort: 8080
+          envFrom:
+            - secretRef:
+                name: {{ .Values.apache.secretRef }}
+          volumeMounts:
+            - name: {{ .Values.pvcName }}
+              mountPath: /var/www/html
+              subPath: wordpress_data
+
+        - name: php-fpm
+          image: {{ .Values.php.image }}
+          ports:
+            - containerPort: 9000
+          envFrom:
+            - configMapRef:
+                name: {{ .Values.php.configMapRef }}
+            - secretRef:
+                name: {{ .Values.php.secretRef }}
+          volumeMounts:
+            - name: {{ .Values.pvcName }}
+              mountPath: /var/www/html
+              subPath: wordpress_data
+      imagePullSecrets:
+          - name: regsmepoc
+      volumes:
+        - name: {{ .Values.pvcName }}
+          persistentVolumeClaim:
+            claimName: {{ .Values.pvcName }}
