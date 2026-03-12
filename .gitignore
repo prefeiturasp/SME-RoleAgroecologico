@@ -1,0 +1,4 @@
+values-hom.yaml
+values-prod.yaml
+nfs/
+.env

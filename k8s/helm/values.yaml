@@ -1,0 +1,22 @@
+nodeAffinity: ${AMBIENTE}
+
+apache:
+  image: "registry.sme.prefeitura.sp.gov.br/${project}/${branchname}/apache:${IMAGE_TAG}"
+  secretRef: "apache-secrets"
+
+php:
+  image: "registry.sme.prefeitura.sp.gov.br/${project}/${branchname}/php:${IMAGE_TAG}"
+  configMapRef: "wp-configs"
+  secretRef: "wp-secrets"
+
+ingress:
+  className: nginx
+  port: 80
+  rules:
+    - host: ${INGRESS_HOST}
+      paths:
+        - path: /
+          pathType: Prefix
+          port: 80
+
+pvcName: roleagroecologico-${AMBIENTE}

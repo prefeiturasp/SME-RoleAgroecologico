@@ -1,0 +1,40 @@
+<html>
+    <head>
+        <style>
+            body { font-family: Arial, sans-serif; color: #333; }
+            .container { background-color: #f9f9f9; padding: 20px; border: 1px solid #ddd; }
+            .dado { margin: 10px 0 20px 0; }
+            .espaco { padding-top: 18px; }
+            .destaque { font-weight: 600; color: #87AE27; font-size: 1rem; margin-top: 30px; }
+            .rodape { margin-top: 4rem; }
+            .rodape .destaque { color: #005C2C; }
+            .rodape #logomarcas { display: flex; justify-content: start; align-items: center; }
+            .rodape #logomarcas img { margin-right: 5px; padding: 1.2rem 0; max-width: 15%; }
+        </style>
+    </head>
+    <body>
+        <div class='container'>
+            <p class='dado'>Olá, <strong>{NOME}</strong></p>
+            <p class='espaco'>Você acionou a opção "Esqueci minha senha" do Rolê Agroecológico. <br>Para concluir esta operação, basta clicar no botão abaixo ou copiar o endereço do link e colar no seu navegador.
+<br>Atenção, link é válido por apenas 6 horas. Após esse período, você deverá fazer uma nova solicitação.</p>
+          <p class="espaco">O seu login de acesso continua o mesmo: <strong>{RF}</strong></p>
+            <p class='espaco'>
+                Clique no link abaixo e defina uma nova senha:  
+            </p>
+        	<p class='dado'>
+              <a href="{LINK_TEMPORARIO}">Redefinir sua senha</a>
+            </p>
+            <div class="rodape">
+                <p class="destaque">
+                    Atenciosamente<br>
+                    Equipe Rolê Agroecológico
+                </p>
+                <br>
+                <br>
+                <div id="logomarcas">
+                    {IMAGENS_RODAPE}
+                </div>
+            </div>
+        </br>
+    </body>
+</html>

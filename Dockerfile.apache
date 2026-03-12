@@ -1,0 +1,7 @@
+FROM registry.sme.prefeitura.sp.gov.br/wordpress/wp-base-apache:3.3-apache
+
+COPY apache/httpd.conf /usr/local/apache2/conf/httpd.conf
+COPY apache/apache-fastcgi.conf /usr/local/apache2/conf/extra/fastcgi.conf
+COPY modsecurity/activate-rules.sh /opt/modsecurity/activate-rules.sh
+COPY modsecurity/setup.conf /etc/modsecurity.d/setup.conf
+COPY .htaccess /var/www/html/.htaccess

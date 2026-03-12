@@ -1,0 +1,11 @@
+{
+    "name": "jj-dev/roleagro",
+    "autoload": {
+        "psr-4": {
+            "App\\": "src"
+        }
+    },
+    "require": {
+        "dompdf/dompdf": "^3.1"
+    }
+}
