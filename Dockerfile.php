@@ -1,4 +1,4 @@
-FROM registry.sme.prefeitura.sp.gov.br/wordpress/wp-base-php:6.8.2-php8.4-fpm
+FROM wordpress:6.8.2-php8.4-fpm
 
 RUN apt-get update && \
     apt-get install -y rsync && \
