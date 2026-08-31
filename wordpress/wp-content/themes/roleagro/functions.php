@@ -170,5 +170,6 @@ function permissao_funcoes_personalizadas() {
 add_action( 'init', 'permissao_funcoes_personalizadas' );
 
 
-
+#### INCLUDE TEMPLATE POSTTYPE MONITORAMENTO DE HORTAS
+require_once VIEWS_DIR .'/../Services/MonitoramentoHortas.php';
 
