@@ -63,6 +63,106 @@ function configuracoes_tema (){
 }
 add_action('after_setup_theme','configuracoes_tema', 0 );
 
+function roleagro_registrar_campos_roteiro_inscricoes() {
+    if (!function_exists('acf_add_local_field_group')) {
+        return;
+    }
+
+    acf_add_local_field_group([
+        'key' => 'group_roteiro_inscricoes',
+        'title' => 'Inscrições do roteiro',
+        'fields' => [
+            [
+                'key' => 'field_roteiro_publico_alvo',
+                'label' => 'Público-alvo',
+                'name' => 'publico_alvo_roteiro',
+                'type' => 'select',
+                'instructions' => 'O público-alvo do Rolê Agroecológico permanece como 6º ano por padrão.',
+                'required' => 0,
+                'choices' => [
+                    '6_ano' => '6º ano',
+                    '7_ano' => '7º ano',
+                    '8_ano' => '8º ano',
+                    '9_ano' => '9º ano',
+                    'medio' => 'Ensino Médio',
+                ],
+                'default_value' => '6_ano',
+                'allow_null' => 1,
+                'multiple' => 0,
+                'ui' => 1,
+                'return_format' => 'value',
+                'ajax' => 0,
+            ],
+            [
+                'key' => 'field_roteiro_inscricoes_abertas',
+                'label' => 'Possibilidade de inscrição?',
+                'name' => 'possibilidade_de_inscricao_roteiro',
+                'type' => 'radio',
+                'instructions' => 'Campo opcional e pode ser alterado depois que o evento for publicado.',
+                'choices' => [
+                    'sim' => 'Sim',
+                    'nao' => 'Não',
+                    'nao_informado' => 'Não informado',
+                ],
+                'default_value' => 'nao_informado',
+                'layout' => 'horizontal',
+                'return_format' => 'value',
+            ],
+            [
+                'key' => 'field_roteiro_vagas_disponiveis',
+                'label' => 'Vagas disponíveis',
+                'name' => 'vagas_disponiveis_roteiro',
+                'type' => 'number',
+                'instructions' => 'Opcional. Informe apenas quando houver limite de vagas.',
+                'min' => 0,
+                'step' => 1,
+                'placeholder' => 'Ex.: 30',
+            ],
+            [
+                'key' => 'field_roteiro_link_inscricao',
+                'label' => 'Link de inscrição',
+                'name' => 'link_inscricao_roteiro',
+                'type' => 'url',
+                'instructions' => 'Opcional. Link para formulário, inscrição ou página externa.',
+                'placeholder' => 'https://',
+            ],
+            [
+                'key' => 'field_roteiro_observacoes_inscricao',
+                'label' => 'Observações sobre inscrições',
+                'name' => 'observacoes_inscricao_roteiro',
+                'type' => 'textarea',
+                'instructions' => 'Opcional. Informe regras, prazos, condições especiais ou observações.',
+                'rows' => 4,
+                'placeholder' => 'Ex.: Inscrições até 15/09, vagas limitadas e prioridade para 6º ano.',
+            ],
+        ],
+        'location' => [
+            [
+                [
+                    'param' => 'post_type',
+                    'operator' => '==',
+                    'value' => 'post_roteiro',
+                ],
+            ],
+        ],
+        'menu_order' => 0,
+        'position' => 'normal',
+        'style' => 'default',
+        'label_placement' => 'top',
+        'instruction_placement' => 'label',
+        'hide_on_screen' => [],
+        'active' => true,
+    ]);
+}
+add_action('acf/init', 'roleagro_registrar_campos_roteiro_inscricoes');
+
+add_filter('acf/load_value/name=publico_alvo_roteiro', function($value, $post_id, $field) {
+    if (empty($value) && get_post_type($post_id) === 'post_roteiro') {
+        return '6_ano';
+    }
+    return $value;
+}, 10, 3);
+
 #### HABILITA O MENU DE CATEGORIAS E TAGS PARA O POSTTYPE ROTEIRO
 function add_taxonomies_to_custom_post_roteiro() {
 

@@ -14,6 +14,29 @@ the_post();
 
 $roteiro = new RoteiroController( get_the_ID() );
 
+$publico_alvo_roteiro = get_field( 'publico_alvo_roteiro', get_the_ID() );
+$possibilidade_inscricao = get_field( 'possibilidade_de_inscricao_roteiro', get_the_ID() );
+$vagas_disponiveis = get_field( 'vagas_disponiveis_roteiro', get_the_ID() );
+$link_inscricao = get_field( 'link_inscricao_roteiro', get_the_ID() );
+$observacoes_inscricao = get_field( 'observacoes_inscricao_roteiro', get_the_ID() );
+
+$publico_alvo_roteiro = $publico_alvo_roteiro ?: '6_ano';
+$possibilidade_inscricao = $possibilidade_inscricao ?: 'nao_informado';
+
+$mapa_publico = [
+    '6_ano' => '6º ano',
+    '7_ano' => '7º ano',
+    '8_ano' => '8º ano',
+    '9_ano' => '9º ano',
+    'medio' => 'Ensino Médio',
+];
+
+$mapa_inscricao = [
+    'sim' => 'Sim',
+    'nao' => 'Não',
+    'nao_informado' => 'Não informado',
+];
+
 $galeria_imagens = $roteiro->get_galeria_imagens();
 $atrativos = $roteiro->get_atrativos_local();
 $aspectos = $roteiro->get_aspectos_local();
@@ -113,6 +136,33 @@ wp_localize_script('calendario', 'datas', [
                             </span>
                         <?php endforeach; ?>
                     </div>
+                <?php endif; ?>
+
+                <?php if ( !empty( $publico_alvo_roteiro ) || !empty( $possibilidade_inscricao ) || !empty( $vagas_disponiveis ) || !empty( $link_inscricao ) || !empty( $observacoes_inscricao ) ) : ?>
+                    <section class="mt-4 borda-divisao" id="detalhe-roteiro__inscricoes">
+                        <h6>Inscrições</h6>
+                        <div class="mt-3">
+                            <p class="mb-2"><strong>Público-alvo:</strong> <?php echo esc_html( $mapa_publico[ $publico_alvo_roteiro ] ?? '6º ano' ); ?></p>
+                            <p class="mb-2"><strong>Possibilidade de inscrição:</strong> <?php echo esc_html( $mapa_inscricao[ $possibilidade_inscricao ] ?? 'Não informado' ); ?></p>
+
+                            <?php if ( !empty( $vagas_disponiveis ) ) : ?>
+                                <p class="mb-2"><strong>Vagas disponíveis:</strong> <?php echo esc_html( $vagas_disponiveis ); ?></p>
+                            <?php endif; ?>
+
+                            <?php if ( !empty( $link_inscricao ) ) : ?>
+                                <p class="mb-2">
+                                    <strong>Link de inscrição:</strong>
+                                    <a href="<?php echo esc_url( $link_inscricao ); ?>" target="_blank" rel="noopener noreferrer">
+                                        Acessar inscrição
+                                    </a>
+                                </p>
+                            <?php endif; ?>
+
+                            <?php if ( !empty( $observacoes_inscricao ) ) : ?>
+                                <p class="mb-0"><strong>Observações:</strong> <?php echo esc_html( $observacoes_inscricao ); ?></p>
+                            <?php endif; ?>
+                        </div>
+                    </section>
                 <?php endif; ?>
             </div>
         </div>
