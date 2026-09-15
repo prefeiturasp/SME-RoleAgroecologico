@@ -3,6 +3,273 @@
 use App\Services\ApiEolService;
 use EnviaEmail\classes\Envia_Emails;
 
+add_action( 'rest_api_init', 'roleagro_email_debug_register_route' );
+function roleagro_email_debug_register_route() {
+    if ( ! function_exists( 'is_plugin_active' ) ) {
+        include_once( ABSPATH . 'wp-admin/includes/plugin.php' );
+    }
+
+    if ( !is_plugin_active( 'envia-email-roleagro/envia-email-role-agro.php' ) ) {
+        return;
+    }
+
+    register_rest_route( 'envia-email-roleagro', '/teste-envio/(?P<idInscricao>\d+)/(?P<tipo>[a-zA-Z0-9_-]+)', array(
+        'methods'  => 'GET',
+        'callback' => 'roleagro_email_debug_prereserva',
+        'permission_callback' => '__return_true',
+    ) );
+
+    register_rest_route( 'envia-email-roleagro', '/lembrete-autorizacoes', array(
+        'methods'  => 'GET',
+        'callback' => 'roleagro_email_debug_lembrete_autorizacoes',
+        'permission_callback' => '__return_true',
+    ) );
+}
+
+function roleagro_email_debug_lembrete_autorizacoes( WP_REST_Request $request ) {
+    $quantidade = Envia_Emails::enviar_lembretes_prazo_autorizacoes();
+
+    return new WP_REST_Response( array(
+        'success' => true,
+        'total_enviados' => $quantidade,
+        'mensagem' => 'Varredura concluída para lembrete de autorizações.',
+    ), 200 );
+}
+
+function roleagro_email_debug_prereserva( WP_REST_Request $request ) {
+    $inscricao_id = absint( $request->get_param( 'idInscricao' ) );
+    $tipo = sanitize_text_field( $request->get_param( 'tipo' ) );
+
+    if ( $inscricao_id <= 0 ) {
+        return new WP_REST_Response( array( 'success' => false, 'message' => 'Informe um idInscricao válido.' ), 400 );
+    }
+
+    $tipos_permitidos = array(
+        'notificacao-pre-reserva',
+        'notificacao-cancelamento-vivencia',
+        'notificacao-unidade-selecionada-roteiro',
+        'notificacao-reforco-prazo-autorizacoes',
+        'notificacao-vivencia-confirmada-unidade-produtiva',
+    );
+
+    if ( ! in_array( $tipo, $tipos_permitidos, true ) ) {
+        return new WP_REST_Response( array(
+            'success' => false,
+            'message' => 'Parâmetro inválido. Use notificacao-pre-reserva, notificacao-cancelamento-vivencia, notificacao-unidade-selecionada-roteiro, notificacao-reforco-prazo-autorizacoes ou notificacao-vivencia-confirmada-unidade-produtiva.',
+        ), 400 );
+    }
+
+    $inscricao = get_post( $inscricao_id );
+    if ( ! $inscricao || $inscricao->post_type !== 'post_inscricao' ) {
+        return new WP_REST_Response( array( 'success' => false, 'message' => 'Inscrição não encontrada.' ), 404 );
+    }
+
+    $emef = get_field( 'nome_da_unidade_educacional', $inscricao_id );
+    if ( empty( $emef ) ) {
+        $emef = $inscricao->post_title;
+    }
+
+    $data_roteiro = get_field( 'data_reservada_para_o_roteiro', $inscricao_id );
+    $data_formatada = roleagro_email_debug_format_data( $data_roteiro );
+
+    $total_participantes = roleagro_email_debug_total_participantes( $inscricao_id );
+    $unidades_produtivas = roleagro_email_debug_obter_unidades_produtivas( $inscricao_id );
+    $nome_unidades_produtivas = roleagro_email_debug_formatar_unidades_produtivas( $unidades_produtivas );
+
+    $template_email = '';
+    $assunto = '';
+    $template_path = '';
+
+    if ( $tipo === 'notificacao-pre-reserva' ) {
+        $template_path = EMAILS_PLUGIN_BASE_DIR . '/src/templates/tema-email-possivel-alocacao-unidade.html';
+        $assunto = 'Possível alocação de vivência no Rolê Agroecológico';
+    }
+
+    if ( $tipo === 'notificacao-cancelamento-vivencia' ) {
+        $template_path = EMAILS_PLUGIN_BASE_DIR . '/src/templates/tema-email-cancelamento-vivencia-confirmada-unidade.html';
+        $assunto = 'Vivência cancelada - Rolê Agroecológico';
+    }
+
+    if ( $tipo === 'notificacao-unidade-selecionada-roteiro' ) {
+        $template_path = EMAILS_PLUGIN_BASE_DIR . '/src/templates/tema-email-unidade-selecionada-roteiro.html';
+        $assunto = 'Sua unidade foi selecionada para o Rolê Agroecológico';
+    }
+
+    if ( $tipo === 'notificacao-reforco-prazo-autorizacoes' ) {
+        $template_path = EMAILS_PLUGIN_BASE_DIR . '/src/templates/tema-email-reforco-prazo-autorizacoes.html';
+        $assunto = 'Reforço de prazo para envio de autorizações do Rolê Agroecológico';
+    }
+
+    if ( $tipo === 'notificacao-vivencia-confirmada-unidade-produtiva' ) {
+        $template_path = EMAILS_PLUGIN_BASE_DIR . '/src/templates/tema-email-vivencia-confirmada-unidade-produtiva.html';
+        $assunto = 'Vivência confirmada - informações para a unidade produtiva';
+    }
+
+    if ( empty( $template_path ) || ! file_exists( $template_path ) ) {
+        return new WP_REST_Response( array(
+            'success' => false,
+            'message' => 'Template de e-mail não encontrado para o tipo solicitado.',
+        ), 404 );
+    }
+
+    $template_email = file_get_contents( $template_path );
+
+    if ( $tipo === 'notificacao-pre-reserva' ) {
+        $template_email = str_replace( '{NOME_UNIDADE_PRODUTIVA}', $nome_unidades_produtivas, $template_email );
+        $template_email = str_replace( '{NOME_EMEF}', mb_strtoupper( $emef ), $template_email );
+        $template_email = str_replace( '{DATA_ROTEIRO}', $data_formatada, $template_email );
+        $template_email = str_replace( '{TOTAL_PARTICIPANTES}', (string) $total_participantes, $template_email );
+        $template_email = str_replace( '{TELEFONE_OSC}', 'a confirmar', $template_email );
+        $template_email = str_replace( '{IMAGENS_RODAPE}', '', $template_email );
+    }
+
+    if ( $tipo === 'notificacao-cancelamento-vivencia' ) {
+        $template_email = str_replace( '{NOME_UNIDADE_PRODUTIVA}', $nome_unidades_produtivas, $template_email );
+        $template_email = str_replace( '{NOME_EMEF}', mb_strtoupper( $emef ), $template_email );
+        $template_email = str_replace( '{DATA_ROTEIRO}', $data_formatada, $template_email );
+        $template_email = str_replace( '{IMAGENS_RODAPE}', '', $template_email );
+
+        $motivo_cancelamento = 'Cancelamento da vivência confirmada por falta de autorizações no prazo.';
+        $motivo_html = "<p class='espaco'>Motivo do cancelamento: {$motivo_cancelamento}</p>";
+        $template_email = str_replace( '{MOTIVO_CANCELAMENTO}', $motivo_html, $template_email );
+    }
+
+    if ( $tipo === 'notificacao-unidade-selecionada-roteiro' ) {
+        $email_contato = get_field( 'e-mail_de_contato_da_ue', $inscricao_id ) ?: 'e-mail não informado';
+        $telefone_contato = get_field( 'telefone_de_contato_da_ue', $inscricao_id ) ?: 'a confirmar';
+        $link_roteiro = site_url( '/roteiros/' );
+
+        $template_email = str_replace( '{IMAGENS_RODAPE}', '', $template_email );
+        $template_email = str_replace( '{EMAIL_CONTATO}', esc_html( $email_contato ), $template_email );
+        $template_email = str_replace( '{TELEFONE_CONTATO}', esc_html( $telefone_contato ), $template_email );
+        $template_email = str_replace( '{LINK_ROTEIRO}', esc_url( $link_roteiro ), $template_email );
+        $template_email = str_replace( '{DATA_ROTEIRO}', $data_formatada, $template_email );
+    }
+
+    if ( $tipo === 'notificacao-reforco-prazo-autorizacoes' ) {
+        $local_roteiro = get_the_title( get_post_meta( $inscricao_id, 'id_roteiro_inscricao', true ) ) ?: 'local do roteiro';
+        $link_site = site_url( '/login/' );
+
+        $template_email = str_replace( '{IMAGENS_RODAPE}', '', $template_email );
+        $template_email = str_replace( '{DATA_ROTEIRO}', $data_formatada, $template_email );
+        $template_email = str_replace( '{LOCAL_ROTEIRO}', mb_strtoupper( $local_roteiro ), $template_email );
+        $template_email = str_replace( '{LINK_SITE}', esc_url( $link_site ), $template_email );
+        $template_email = str_replace( '{TAMANHO_PDF}', '2M', $template_email );
+    }
+
+    if ( $tipo === 'notificacao-vivencia-confirmada-unidade-produtiva' ) {
+        $link_restricoes = site_url( '/formulario-restricoes-alimentares/' );
+        $telefone_osc = get_field( 'telefone_de_contato_da_osc', 'options' ) ?: 'a confirmar';
+        $nome_propriedade = get_the_title( get_post_meta( $inscricao_id, 'id_roteiro_inscricao', true ) ) ?: 'Unidade Produtiva';
+
+        $template_email = str_replace( '{IMAGENS_RODAPE}', '', $template_email );
+        $template_email = str_replace( '{NOME_UNIDADE_PRODUTIVA}', $nome_unidades_produtivas, $template_email );
+        $template_email = str_replace( '{NOME_EMEF}', mb_strtoupper( $emef ), $template_email );
+        $template_email = str_replace( '{DATA_ROTEIRO}', $data_formatada, $template_email );
+        $template_email = str_replace( '{TOTAL_PARTICIPANTES}', (string) $total_participantes, $template_email );
+        $template_email = str_replace( '{TELEFONE_OSC}', esc_html( $telefone_osc ), $template_email );
+        $template_email = str_replace( '{LINK_FORMULARIO_REFEICOES}', esc_url( $link_restricoes ), $template_email );
+        $template_email = str_replace( '{NOME_PROPRIEDADE}', mb_strtoupper( $nome_propriedade ), $template_email );
+        $template_email = str_replace( '{KIT_BLOCK}', '', $template_email );
+    }
+
+    add_filter( 'wp_mail_content_type', 'roleagro_email_debug_set_html_content_type' );
+    $email_enviado = wp_mail( 'jardeon.araujo@gmail.com', $assunto, $template_email );
+    remove_filter( 'wp_mail_content_type', 'roleagro_email_debug_set_html_content_type' );
+
+    return new WP_REST_Response( array(
+        'success' => $email_enviado,
+        'template' => $tipo,
+        'destinatario' => 'jardeon.araujo@gmail.com',
+        'inscricao_id' => $inscricao_id,
+        'data_roteiro' => $data_formatada,
+        'total_participantes' => $total_participantes,
+    ), $email_enviado ? 200 : 500 );
+}
+
+function roleagro_email_debug_set_html_content_type() {
+    return 'text/html';
+}
+
+function roleagro_email_debug_obter_unidades_produtivas( $inscricao_id ) {
+    $roteiro_id = get_post_meta( $inscricao_id, 'id_roteiro_inscricao', true );
+    $unidades_roteiro = get_post_meta( $roteiro_id, 'ids_up_roteiro', true );
+    $unidades = array();
+
+    if ( ! is_array( $unidades_roteiro ) ) {
+        return $unidades;
+    }
+
+    foreach ( $unidades_roteiro as $unidade_id ) {
+        $nome_unidade = get_the_title( $unidade_id );
+
+        if ( empty( $nome_unidade ) ) {
+            $nome_unidade = get_field( 'nome_da_unidade_produtiva', $unidade_id );
+        }
+
+        if ( empty( $nome_unidade ) ) {
+            $nome_unidade = 'Equipe da Unidade Produtiva';
+        }
+
+        $unidades[] = mb_strtoupper( trim( $nome_unidade ) );
+    }
+
+    return $unidades;
+}
+
+function roleagro_email_debug_formatar_unidades_produtivas( $unidades ) {
+    if ( empty( $unidades ) ) {
+        return 'UNIDADE PRODUTIVA DE TESTE';
+    }
+
+    return implode( ', ', array_unique( $unidades ) );
+}
+
+function roleagro_email_debug_total_participantes( $inscricao_id ) {
+    $total = 0;
+
+    $turmas = get_post_meta( $inscricao_id, 'dados_turmas', true );
+    if ( is_array( $turmas ) ) {
+        foreach ( $turmas as $turma ) {
+            if ( !empty( $turma['alunosTurma'] ) && is_array( $turma['alunosTurma'] ) ) {
+                $total += count( $turma['alunosTurma'] );
+            }
+        }
+    }
+
+    $educadores = get_post_meta( $inscricao_id, 'dados_educadores', true );
+    if ( is_array( $educadores ) ) {
+        $total += count( $educadores );
+    }
+
+    $acompanhantes = get_post_meta( $inscricao_id, 'dados_acompanhantes', true );
+    if ( is_array( $acompanhantes ) ) {
+        $total += count( $acompanhantes );
+    }
+
+    return $total;
+}
+
+function roleagro_email_debug_format_data( $data ) {
+    try {
+        $dt = DateTime::createFromFormat( 'd/m/Y', $data );
+        if ( $dt && $dt->format( 'd/m/Y' ) === $data ) {
+            $formatted = new IntlDateFormatter( 'pt_BR', IntlDateFormatter::FULL, IntlDateFormatter::NONE, 'America/Sao_Paulo', IntlDateFormatter::GREGORIAN, 'dd/MM/yyyy' );
+            return $formatted->format( $dt->getTimestamp() );
+        }
+
+        $dt = DateTime::createFromFormat( 'Y-m-d', $data );
+        if ( $dt && $dt->format( 'Y-m-d' ) === $data ) {
+            $formatted = new IntlDateFormatter( 'pt_BR', IntlDateFormatter::FULL, IntlDateFormatter::NONE, 'America/Sao_Paulo', IntlDateFormatter::GREGORIAN, 'dd/MM/yyyy' );
+            return $formatted->format( $dt->getTimestamp() );
+        }
+    } catch ( Exception $e ) {
+        return $data;
+    }
+
+    return $data;
+}
+
 #### ADD ENDPOINT PARA CADASTRAR INFORMACOES TEMPORÁRIAS
 add_action( 'rest_api_init', 'rota_armazena_info_temp' );
 function rota_armazena_info_temp() {
@@ -194,6 +461,10 @@ function get_informacoes_agendamento( $request ) {
 
     //Envia o e-mail de confirmação do recebimento do agendamento
     new Envia_Emails( $post_id, 'agendamento_recebido', 'confirmar_recebimento' );
+
+    // Dispara automaticamente a notificação da unidade produtiva ao criar a inscrição,
+    // para que o histórico de notificação seja persistido com o mesmo fluxo de envio.
+    new Envia_Emails( $post_id, 'notificar_unidade_produtiva', 'confirmar_agendamento_up' );
 
     // Retornar o ID do novo post
     wp_send_json_success($data['dadosTurmas']);

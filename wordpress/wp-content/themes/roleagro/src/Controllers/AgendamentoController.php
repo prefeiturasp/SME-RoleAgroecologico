@@ -5,6 +5,7 @@ namespace App\Controllers;
 use App\Services\ApiEolService;
 use App\Services\DocumentoService;
 use EnviaEmail\classes\Envia_Emails;
+use Exception;
 
 class AgendamentoController {
     private $roteiro_id;
@@ -518,9 +519,47 @@ class AgendamentoController {
 
         if ( boolval( $novo_valor ) ) {
             update_post_meta( $post_id, 'status_inscricao', 'cancelado' );
+
+            $motivo_cancelamento = $this->resolver_motivo_cancelamento( $post_id );
+            update_post_meta( $post_id, 'motivo_cancelamento', $motivo_cancelamento );
+
+            try {
+                new Envia_Emails( $post_id, 'cancelamento_vivencia_confirmada_unidade', 'cancelamento_unidade' );
+            } catch ( Exception $e ) {
+                set_transient( 'autorizacoes_erro_' . get_current_user_id(), $e->getMessage(), 30 );
+                return $novo_valor;
+            }
         }
 
         return $novo_valor;
+    }
+
+    private function resolver_motivo_cancelamento( $post_id ) {
+
+        $motivo = get_post_meta( $post_id, 'motivo_cancelamento', true );
+        if ( ! empty( $motivo ) ) {
+            return sanitize_text_field( $motivo );
+        }
+
+        $justificativa = get_post_meta( $post_id, 'justificativa_solicitacao_cancelamento', true );
+        $resposta_unidade = get_post_meta( $post_id, 'resposta_unidade_produtiva', true );
+
+        $texto = trim( (string) $justificativa . ' ' . (string) $resposta_unidade );
+        $texto = strtolower( sanitize_text_field( $texto ) );
+
+        if ( strpos( $texto, 'prazo' ) !== false ) {
+            return 'Cancelamento da vivência confirmada por falta de autorizações no prazo.';
+        }
+
+        if ( strpos( $texto, 'insuficiente' ) !== false || strpos( $texto, 'insuficiente' ) !== false || strpos( $texto, 'insuficiente' ) !== false ) {
+            return 'Cancelamento da vivência confirmada por número insuficiente de autorizações.';
+        }
+
+        if ( strpos( $texto, 'desistencia' ) !== false || strpos( $texto, 'desistência' ) !== false || strpos( $texto, 'recusa' ) !== false || strpos( $texto, 'unidade produtiva' ) !== false || strpos( $texto, 'escola' ) !== false ) {
+            return 'Cancelamento da vivência confirmada por desistência da escola ou recusa da unidade produtiva.';
+        }
+
+        return 'Cancelamento da vivência confirmada por falta de autorizações no prazo.';
     }
 
     public function handle_confirmar_inscricao( $novo_valor, $post_id, $campo ) {

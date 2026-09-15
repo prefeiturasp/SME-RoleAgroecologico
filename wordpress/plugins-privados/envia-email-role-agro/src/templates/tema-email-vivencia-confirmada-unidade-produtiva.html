@@ -1,0 +1,55 @@
+<!doctype html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Vivência confirmada - unidade produtiva</title>
+    <style>
+        body { font-family: Arial, sans-serif; color: #333; background: #fff; }
+        .container { max-width: 680px; margin: 0 auto; padding: 24px; }
+        .logo { margin-bottom: 20px; }
+        .logo img { max-width: 180px; }
+        .espaco { margin: 16px 0; line-height: 1.6; }
+        .rodape { margin-top: 30px; }
+        .rodape img { max-height: 48px; margin-right: 10px; }
+        .destaque { font-weight: 700; color: #005C2C; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="logo">
+        {IMAGENS_RODAPE}
+    </div>
+
+    <p class="espaco">Olá equipe {NOME_UNIDADE_PRODUTIVA}.</p>
+
+    <p class="espaco">Esperamos que estejam bem.</p>
+
+    <p class="espaco">
+        Informamos que há uma Vivência Pedagógica agendada pela {NOME_EMEF} para o dia {DATA_ROTEIRO} em sua Unidade Produtiva.
+    </p>
+
+    <p class="espaco">
+        A previsão é de {TOTAL_PARTICIPANTES} participantes nessa Vivência, conforme o anexo. Verifique se há participantes com restrições alimentares ou necessidades de acessibilidade.
+    </p>
+
+    <p class="espaco">
+        <strong>REFEIÇÕES:</strong> realize o planejamento das refeições de acordo com as informações recebidas em até 3 dias úteis antes da vivência e envie o cardápio a ser servido no dia neste link <a href="{LINK_FORMULARIO_REFEICOES}">{LINK_FORMULARIO_REFEICOES}</a>. A OSC entrará em contato se houver necessidade de adequações.
+    </p>
+
+    {KIT_BLOCK}
+
+    <p class="espaco">
+        Estamos muito felizes que o Rolê Agroecológico irá acontecer no(a) {NOME_PROPRIEDADE}.
+    </p>
+
+    <p class="espaco">
+        Agradecemos desde já pela parceria.<br>
+        Em caso de dúvidas entre em contato com a OSC: {TELEFONE_OSC}.
+    </p>
+
+    <div class="rodape">
+        {IMAGENS_RODAPE}
+    </div>
+</div>
+</body>
+</html>
