@@ -1,0 +1,43 @@
+<!doctype html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Vivência cancelada</title>
+    <style>
+        body { font-family: Arial, sans-serif; color: #333; background: #fff; }
+        .container { max-width: 640px; margin: 0 auto; padding: 24px; }
+        .logo { margin-bottom: 20px; }
+        .logo img { max-width: 180px; }
+        .espaco { margin: 16px 0; line-height: 1.6; }
+        .rodape { margin-top: 30px; }
+        .rodape img { max-height: 48px; margin-right: 10px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="logo">
+            {IMAGENS_RODAPE}
+        </div>
+
+        <p class="espaco">Prezada equipe {NOME_UNIDADE_PRODUTIVA},</p>
+
+        <p class="espaco">
+            Informamos que a reserva referente à vivência da {NOME_EMEF} agendada para o dia {DATA_ROTEIRO}, foi <strong>CANCELADA</strong>.
+        </p>
+
+        <p class="espaco">
+            Lamentamos o transtorno.
+        </p>
+
+        <p class="espaco">
+            Ficamos à disposição para dúvidas ou esclarecimentos em nossos canais de comunicação.
+        </p>
+
+        {MOTIVO_CANCELAMENTO}
+
+        <div class="rodape">
+            {IMAGENS_RODAPE}
+        </div>
+    </div>
+</body>
+</html>

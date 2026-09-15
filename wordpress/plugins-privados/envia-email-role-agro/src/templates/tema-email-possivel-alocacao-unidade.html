@@ -5,9 +5,9 @@
             .container { background-color: #f9f9f9; padding: 20px; border: 1px solid #ddd; }
             .dado { margin: 10px 0 20px 0; }
             .espaco { padding-top: 18px; }
-            .lista { line-height: 2rem; }
+            .lista { line-height: 1.7rem; }
             .destaque { font-weight: 600; color: #87AE27; font-size: 1rem; margin-top: 30px; }
-            .rodape { margin-top: 4rem; }
+            .rodape { margin-top: 5rem; }
             .rodape .destaque { color: #005C2C; }
             .rodape #logomarcas { display: flex; justify-content: start; align-items: center; }
             .rodape #logomarcas img { margin-right: 5px; padding: 1.2rem 0; max-width: 15%; }
@@ -15,28 +15,27 @@
     </head>
     <body>
         <div class='container'>
-            <p class='dado'>Prezado(a) Produtor(a),</p>
-            <p class='espaco'>O Rolê agendado para:</p>
-            <p class='lista'>
-                <strong>Data:</strong> {DATA_ROTEIRO}<br>
-                <strong>Tipo de Roteiro:</strong> {TIPO_ROTEIRO}<br>
-            </p>
-            <p class='espaco'>Foi cancelado em virtude da indisponibilidade da Unidade Educacional.</p>
-            <p class='espaco motivo-cancelamento'>Motivo do cancelamento: {MOTIVO_CANCELAMENTO}</p>
-            <p class="espaco">Qualquer dúvida estamos a disposição.</p>
-            <p class="espaco">Agradecemos sua disponibilidade em participar do Rolê Agroecológico.</p>
+            <p class='dado'>Olá equipe {NOME_UNIDADE_PRODUTIVA}.</p>
+
+            <p class='espaco'>Informamos que a {NOME_EMEF} manifestou interesse em uma visita na sua propriedade no dia {DATA_ROTEIRO}.</p>
+
+            <p class='espaco'>A escola está providenciando as autorizações e informações dos estudantes.</p>
+
+            <p class='espaco'>A estimativa é de {TOTAL_PARTICIPANTES} participantes nessa vivência.</p>
+
+            <p class='espaco'>Aguarde o e-mail de confirmação deste agendamento.</p>
+
+            <p class='espaco'>Em caso de impossibilidade de receber a escola nesta data ou de outras dúvidas, entre em contato com a OSC: {TELEFONE_OSC}.</p>
 
             <div class="rodape">
                 <p class="destaque">
                     Atenciosamente<br>
                     Equipe Rolê Agroecológico
                 </p>
-                <br>
-                <br>
                 <div id="logomarcas">
                     {IMAGENS_RODAPE}
                 </div>
             </div>
-        </br>
+        </div>
     </body>
 </html>
