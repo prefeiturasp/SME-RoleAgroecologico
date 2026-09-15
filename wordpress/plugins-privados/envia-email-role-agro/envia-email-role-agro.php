@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Envio de Emails Personalizados - SME - v2
  * Description: Envia e-mails e notificações personalizadas.
- * Version: 1.1
+ * Version: 1.2
  * Author: Jardeon J M Araujo
  */
 
