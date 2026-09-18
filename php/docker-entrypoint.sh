@@ -20,17 +20,19 @@ update_wordpress_core() {
 update_wordpress_plugins_privados(){
         # lógica de plugins privados
         if [ -d "/tmp/plugins-privados" ]; then
-        echo "Copiando plugins privados..."
-        cp -r /tmp/plugins-privados/ /var/www/html/
-        rm -f /var/www/html/wp-content/plugins/aviso-secretario /var/www/html/wp-content/plugins/config-role /var/www/html/wp-content/plugins/coressoapi /var/www/html/wp-content/plugins/email-admin /var/www/html/wp-content/plugins/grupo-editores
-        ln -s /var/www/html/plugins-privados/aviso-secretario /var/www/html/wp-content/plugins/aviso-secretario
-        ln -s /var/www/html/plugins-privados/config-role /var/www/html/wp-content/plugins/config-role
-        ln -s /var/www/html/plugins-privados/coressoapi /var/www/html/wp-content/plugins/coressoapi
-        ln -s /var/www/html/plugins-privados/email-admin /var/www/html/wp-content/plugins/email-admin
-        ln -s /var/www/html/plugins-privados/grupo-editores /var/www/html/wp-content/plugins/grupo-editores
-        chown -R www-data:www-data /var/www/html/wp-content/plugins/aviso-secretario
-        rm -Rf /tmp/plugins-privados
-        echo >&2 "WordPress Plugins privados executado!"
+            echo "Copiando plugins privados..."
+            cp -r /tmp/plugins-privados/ /var/www/html/
+            rm -f /var/www/html/wp-content/plugins/aviso-secretario /var/www/html/wp-content/plugins/config-role /var/www/html/wp-content/plugins/coressoapi /var/www/html/wp-content/plugins/email-admin /var/www/html/wp-content/plugins/grupo-editores /var/www/html/wp-content/plugins/envia-email-role-agro
+            ln -s /var/www/html/plugins-privados/aviso-secretario /var/www/html/wp-content/plugins/aviso-secretario
+            ln -s /var/www/html/plugins-privados/config-role /var/www/html/wp-content/plugins/config-role
+            ln -s /var/www/html/plugins-privados/coressoapi /var/www/html/wp-content/plugins/coressoapi
+            ln -s /var/www/html/plugins-privados/email-admin /var/www/html/wp-content/plugins/email-admin
+            ln -s /var/www/html/plugins-privados/grupo-editores /var/www/html/wp-content/plugins/grupo-editores
+            ln -s /var/www/html/plugins-privados/envia-email-role-agro /var/www/html/wp-content/plugins/envia-email-role-agro
+            chown -R www-data:www-data /var/www/html/plugins-privados
+            chown -R www-data:www-data /var/www/html/wp-content/plugins
+            rm -Rf /tmp/plugins-privados
+            echo >&2 "WordPress Plugins privados executado!"
         fi
 }
 
