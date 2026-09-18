@@ -22,7 +22,7 @@ update_wordpress_plugins_privados(){
         if [ -d "/tmp/plugins-privados" ]; then
             echo "Copiando plugins privados..."
             cp -r /tmp/plugins-privados/ /var/www/html/
-            rm -f /var/www/html/wp-content/plugins/aviso-secretario /var/www/html/wp-content/plugins/config-role /var/www/html/wp-content/plugins/coressoapi /var/www/html/wp-content/plugins/email-admin /var/www/html/wp-content/plugins/grupo-editores /var/www/html/wp-content/plugins/envia-email-role-agro
+            rm -f /var/www/html/wp-content/plugins/aviso-secretario /var/www/html/wp-content/plugins/config-role /var/www/html/wp-content/plugins/coressoapi /var/www/html/wp-content/plugins/email-admin /var/www/html/wp-content/plugins/grupo-editores /var/www/html/wp-content/plugins/envia-email-role-agro || true
             ln -s /var/www/html/plugins-privados/aviso-secretario /var/www/html/wp-content/plugins/aviso-secretario
             ln -s /var/www/html/plugins-privados/config-role /var/www/html/wp-content/plugins/config-role
             ln -s /var/www/html/plugins-privados/coressoapi /var/www/html/wp-content/plugins/coressoapi
