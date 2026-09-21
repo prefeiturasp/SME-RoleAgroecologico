@@ -1,0 +1,11 @@
+{
+    "name": "roleagro/sorteios-roleagro",
+    "autoload": {
+        "psr-4": {
+            "App\\": "src"
+        }
+    },
+    "require": {
+        "phpoffice/phpspreadsheet": "^5.10"
+    }
+}
