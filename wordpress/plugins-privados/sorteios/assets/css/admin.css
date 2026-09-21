@@ -1,0 +1,305 @@
+.sorteios-wizard {
+    max-width: 1000px;
+    margin-top: 25px;
+}
+
+.sorteios-etapa {
+    margin-bottom: 10px;
+    background: #fff;
+    border: 1px solid #dcdcde;
+    border-radius: 4px;
+}
+
+.sorteios-etapa-cabecalho {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-height: 60px;
+    padding: 12px 20px;
+}
+
+.sorteios-etapa-cabecalho h2 {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 600;
+}
+
+.sorteios-etapa-cabecalho-info {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+
+.sorteios-etapa-cabecalho-info h2 {
+    margin: 0;
+}
+
+.sorteios-etapa-subtitulo {
+    font-size: 13px;
+    line-height: 1.4;
+    color: #50575e;
+}
+
+.sorteios-etapa:not(.ativa) .sorteios-etapa-cabecalho {
+    color: #646970;
+}
+
+.sorteios-etapa.ativa {
+    border-color: #2271b1;
+}
+
+.sorteios-etapa.ativa .sorteios-etapa-cabecalho {
+    border-bottom: 1px solid #dcdcde;
+}
+
+.sorteios-etapa-numero {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 32px;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: #f0f0f1;
+    font-weight: 600;
+}
+
+.sorteios-etapa.ativa .sorteios-etapa-numero {
+    background: #2271b1;
+    color: #fff;
+}
+
+.sorteios-etapa-conteudo {
+    padding: 20px;
+}
+
+.sorteios-etapa-conteudo > p:first-child {
+    margin-top: 0;
+}
+
+.sorteios-dres-selecao {
+    margin-top: 25px;
+}
+
+.sorteios-dres-acoes {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 15px;
+    margin-bottom: 15px;
+}
+
+.sorteios-dres-acoes-botoes {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.sorteios-dres-contador {
+    color: #50575e;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.sorteios-dres-lista {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    padding: 15px;
+    background: #f6f7f7;
+    border: 1px solid #dcdcde;
+    border-radius: 4px;
+}
+
+.sorteios-dre-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 40px;
+    padding: 8px 10px;
+    background: #fff;
+    border: 1px solid #dcdcde;
+    border-radius: 3px;
+    cursor: pointer;
+}
+
+.sorteios-dre-item:hover {
+    border-color: #2271b1;
+}
+
+.sorteios-dre-item input {
+    margin: 0;
+}
+
+.sorteios-dre-item input[type="checkbox"]:checked {
+    background: #007cba;
+    border-color: #007cba;
+}
+
+.sorteios-etapa-acoes {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 25px;
+}
+
+.sorteios-modal {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    z-index: 999999 !important;
+}
+
+.sorteios-modal-overlay {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    background: rgba(0, 0, 0, 0.5);
+}
+
+.sorteios-modal-content {
+    position: absolute !important;
+    z-index: 1000000 !important;
+
+    top: 40px;
+    left: 50%;
+    transform: translateX(-50%);
+
+    width: calc(100vw - 80px);
+    max-width: 1000px;
+    max-height: calc(100vh - 80px);
+
+    margin: 0;
+
+    overflow: hidden;
+
+    background: #fff;
+    border-radius: 4px;
+
+    box-shadow: 0 5px 20px rgba(0, 0, 0, 0.25);
+}
+
+.sorteios-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+
+    padding: 15px 20px;
+
+    border-bottom: 1px solid #dcdcde;
+}
+
+.sorteios-modal-header h2 {
+    margin: 0;
+}
+
+.sorteios-modal-fechar {
+    border: 0;
+    background: transparent;
+
+    font-size: 28px;
+    line-height: 1;
+
+    cursor: pointer;
+}
+
+.sorteios-modal-body {
+    max-height: calc(100vh - 180px);
+
+    padding: 20px;
+
+    overflow-y: auto;
+}
+
+.sorteios-modal-body table {
+    margin-top: 0;
+}
+
+.sorteios-modal-aberto {
+    overflow: hidden !important;
+}
+
+.sorteios-horta-opcoes {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: 25px;
+    max-width: 700px;
+}
+
+.sorteios-horta-opcao {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 15px;
+    background: #fff;
+    border: 1px solid #dcdcde;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.sorteios-horta-opcao:hover {
+    border-color: #2271b1;
+}
+
+.sorteios-horta-opcao input {
+    margin-top: 3px;
+}
+
+.sorteios-horta-opcao-conteudo {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.sorteios-horta-opcao-conteudo strong {
+    font-size: 14px;
+}
+
+.sorteios-horta-opcao-conteudo small {
+    color: #646970;
+}
+
+.sorteios-quantidade {
+    max-width: 400px;
+    margin-top: 25px;
+}
+
+.sorteios-quantidade label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 600;
+}
+
+.sorteios-quantidade input[type="number"] {
+    width: 120px;
+}
+
+.sorteios-aviso-sorteio {
+    margin-top: 25px;
+    background: #f4f4f4;
+}
+
+@media screen and (max-width: 782px) {
+
+    .sorteios-dres-lista {
+        grid-template-columns: 1fr;
+    }
+
+    .sorteios-etapa-conteudo {
+        padding: 15px;
+    }
+
+    .sorteios-resumo-configuracao {
+        grid-template-columns: 1fr;
+    }
+
+}
