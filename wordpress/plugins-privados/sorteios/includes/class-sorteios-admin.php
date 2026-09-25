@@ -32,6 +32,26 @@ class Sorteios_Admin
             'admin_post_sorteios_realizar',
             [__CLASS__, 'realizar_sorteio']
         );
+
+        add_action(
+            'wp_ajax_sorteios_alterar_status',
+            [__CLASS__, 'alterar_status']
+        );
+
+        add_action(
+            'admin_post_sorteios_exportar_resultados',
+            [__CLASS__, 'exportar_resultados']
+        );
+
+        add_action(
+            'admin_post_sorteios_baixar_arquivo',
+            [__CLASS__, 'baixar_arquivo_sorteio']
+        );
+
+        add_action(
+            'admin_post_sorteios_excluir',
+            [__CLASS__, 'excluir_sorteio']
+        );
     }
 
     public static function admin_menu()
@@ -58,42 +78,1474 @@ class Sorteios_Admin
 
     public static function admin_enqueue_scripts($hook)
     {
-        if ($hook !== 'sorteios_page_novo-sorteio') {
+        if (
+            $hook !== 'sorteios_page_novo-sorteio' &&
+            $hook !== 'toplevel_page_sorteios'
+        ) {
             return;
         }
 
         wp_enqueue_style(
-            'sorteios-admin',
-            SORTEIOS_PLUGIN_URL . 'assets/css/admin.css',
+            'sorteios-datatables',
+            SORTEIOS_PLUGIN_URL . 'assets/css/dataTables.dataTables.min.css',
             [],
             SORTEIOS_VERSION
+        );
+
+        wp_enqueue_style(
+            'sorteios-admin',
+            SORTEIOS_PLUGIN_URL . 'assets/css/admin.css',
+            ['sorteios-datatables'],
+            SORTEIOS_VERSION
+        );
+
+        wp_enqueue_script(
+            'sorteios-datatables',
+            SORTEIOS_PLUGIN_URL . 'assets/js/dataTables.min.js',
+            ['jquery'],
+            SORTEIOS_VERSION,
+            true
         );
 
         wp_enqueue_script(
             'sorteios-admin',
             SORTEIOS_PLUGIN_URL . 'assets/js/admin.js',
-            [],
+            ['jquery', 'sorteios-datatables'],
             SORTEIOS_VERSION,
             true
         );
+
+        wp_localize_script(
+            'sorteios-admin',
+            'SorteiosAdmin',
+            [
+                'ajaxUrl' => admin_url('admin-ajax.php'),
+
+                'nonceAlterarStatus' => wp_create_nonce(
+                    'sorteios_alterar_status'
+                ),
+
+                'exportUrl' => admin_url(
+                    'admin-post.php'
+                ),
+
+                'nonceExportar' => wp_create_nonce(
+                    'sorteios_exportar_resultados'
+                ),
+            ]
+        );
+
+    }
+
+    public static function exportar_resultados()
+    {
+        if (!current_user_can('manage_options')) {
+            wp_die(
+                'Você não tem permissão para exportar os resultados.'
+            );
+        }
+
+        check_admin_referer(
+            'sorteios_exportar_resultados',
+            'nonce'
+        );
+
+        $sorteio_id = isset($_POST['sorteio_id'])
+            ? absint($_POST['sorteio_id'])
+            : 0;
+
+        $unidades_ids = isset($_POST['unidades_ids'])
+            && is_array($_POST['unidades_ids'])
+            ? array_map(
+                'absint',
+                $_POST['unidades_ids']
+            )
+            : [];
+
+        $unidades_ids = array_values(
+            array_filter(
+                array_unique($unidades_ids)
+            )
+        );
+
+        if ($sorteio_id <= 0) {
+            wp_die(
+                'Sorteio inválido.'
+            );
+        }
+
+        if (empty($unidades_ids)) {
+            wp_die(
+                'Nenhuma unidade foi selecionada para exportação.'
+            );
+        }
+
+        $sorteio = self::obter_sorteio(
+            $sorteio_id
+        );
+
+        if (!$sorteio) {
+            wp_die(
+                'Sorteio não encontrado.'
+            );
+        }
+
+        global $wpdb;
+
+        $table_unidades =
+            $wpdb->prefix . 'sorteio_unidades';
+
+        /*
+        * Cria os placeholders para o IN().
+        */
+        $placeholders = implode(
+            ', ',
+            array_fill(
+                0,
+                count($unidades_ids),
+                '%d'
+            )
+        );
+
+        /*
+        * O sorteio_id também é validado.
+        *
+        * Dessa forma não basta enviar IDs arbitrários:
+        * as unidades precisam pertencer ao sorteio.
+        */
+        $query = $wpdb->prepare(
+            "SELECT
+                id,
+                ordem_sorteio,
+                dre,
+                cie,
+                nome_unidade,
+                status
+            FROM {$table_unidades}
+            WHERE sorteio_id = %d
+            AND id IN ({$placeholders})
+            ORDER BY dre ASC, ordem_sorteio ASC",
+            array_merge(
+                [$sorteio_id],
+                $unidades_ids
+            )
+        );
+
+        $unidades = $wpdb->get_results(
+            $query
+        );
+
+        if (empty($unidades)) {
+            wp_die(
+                'Nenhum resultado encontrado para exportação.'
+            );
+        }
+
+        /*
+        * Cria a planilha.
+        */
+        $spreadsheet =
+            new \PhpOffice\PhpSpreadsheet\Spreadsheet();
+
+        $sheet = $spreadsheet->getActiveSheet();
+
+        $sheet->setTitle(
+            'Resultado'
+        );
+
+        /*
+        * Título do sorteio.
+        *
+        * Ocupa toda a largura da tabela
+        * nas duas primeiras linhas.
+        */
+        $sheet->mergeCells(
+            'A1:E2'
+        );
+
+        $sheet->setCellValue(
+            'A1',
+            $sorteio->nome
+        );
+
+        /*
+        * Estilo do título.
+        */
+        $sheet
+            ->getStyle('A1:E2')
+            ->getFont()
+            ->setBold(true)
+            ->setSize(18);
+
+        $sheet
+            ->getStyle('A1:E2')
+            ->getFont()
+            ->getColor()
+            ->setARGB(
+                'FFFFFFFF'
+            );
+
+        $sheet
+            ->getStyle('A1:E2')
+            ->getFill()
+            ->setFillType(
+                \PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID
+            )
+            ->getStartColor()
+            ->setARGB(
+                'FF1D2327'
+            );
+
+        $sheet
+            ->getStyle('A1:E2')
+            ->getAlignment()
+            ->setHorizontal(
+                \PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER
+            )
+            ->setVertical(
+                \PhpOffice\PhpSpreadsheet\Style\Alignment::VERTICAL_CENTER
+            );
+
+        /*
+        * Altura das linhas do título.
+        */
+        $sheet
+            ->getRowDimension(1)
+            ->setRowHeight(22);
+
+        $sheet
+            ->getRowDimension(2)
+            ->setRowHeight(22);
+
+        /*
+        * Cabeçalhos da tabela.
+        *
+        * A linha 3 fica vazia para separar
+        * visualmente o título da tabela.
+        */
+        $sheet->fromArray(
+            [
+                [
+                    'Ordem',
+                    'DRE',
+                    'CIE',
+                    'Unidade',
+                    'Status',
+                ]
+            ],
+            null,
+            'A4'
+        );
+
+        /*
+        * Labels dos status.
+        */
+        $status_labels = [
+            'aguardando_confirmacao' =>
+                'Sorteado – Aguardando confirmação',
+
+            'confirmado' =>
+                'Sorteado – Confirmado',
+
+            'lista_espera' =>
+                'Lista de espera',
+
+            'desistencia' =>
+                'Desistência',
+        ];
+
+        /*
+        * Os dados começam na linha 5.
+        */
+        $linha = 5;
+
+        foreach ($unidades as $unidade) {
+
+            $status_label =
+                $status_labels[$unidade->status]
+                ?? $unidade->status;
+
+            /*
+            * Ordem.
+            */
+            $sheet->setCellValue(
+                'A' . $linha,
+                (int) $unidade->ordem_sorteio
+            );
+
+            /*
+            * DRE.
+            */
+            $sheet->setCellValue(
+                'B' . $linha,
+                $unidade->dre
+            );
+
+            /*
+            * CIE como texto.
+            *
+            * Isso evita que o Excel altere códigos
+            * ou remova zeros à esquerda.
+            */
+            $sheet->setCellValueExplicit(
+                'C' . $linha,
+                (string) $unidade->cie,
+                \PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_STRING
+            );
+
+            /*
+            * Unidade.
+            */
+            $sheet->setCellValue(
+                'D' . $linha,
+                $unidade->nome_unidade
+            );
+
+            /*
+            * Status.
+            */
+            $sheet->setCellValue(
+                'E' . $linha,
+                $status_label
+            );
+
+            /*
+            * Cor da célula de status.
+            */
+            switch ($unidade->status) {
+
+                case 'aguardando_confirmacao':
+
+                    $cor_fundo = 'FFF8E5';
+                    $cor_texto = '996800';
+
+                    break;
+
+                case 'confirmado':
+
+                    $cor_fundo = 'EDFAEF';
+                    $cor_texto = '18733C';
+
+                    break;
+
+                case 'lista_espera':
+
+                    $cor_fundo = 'EEF4FF';
+                    $cor_texto = '315F9E';
+
+                    break;
+
+                case 'desistencia':
+
+                    $cor_fundo = 'FBEAEA';
+                    $cor_texto = 'B32D2E';
+
+                    break;
+
+                default:
+
+                    $cor_fundo = null;
+                    $cor_texto = null;
+
+                    break;
+            }
+
+            if ($cor_fundo) {
+                $sheet
+                    ->getStyle('E' . $linha)
+                    ->getFill()
+                    ->setFillType(
+                        \PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID
+                    )
+                    ->getStartColor()
+                    ->setARGB(
+                        'FF' . $cor_fundo
+                    );
+            }
+
+            if ($cor_texto) {
+                $sheet
+                    ->getStyle('E' . $linha)
+                    ->getFont()
+                    ->getColor()
+                    ->setARGB(
+                        'FF' . $cor_texto
+                    );
+            }
+
+            $linha++;
+        }
+
+        $ultima_linha = $linha - 1;
+
+        /*
+        * Estilo do cabeçalho da tabela.
+        */
+        $sheet
+            ->getStyle('A4:E4')
+            ->getFont()
+            ->setBold(true);
+
+        $sheet
+            ->getStyle('A4:E4')
+            ->getFill()
+            ->setFillType(
+                \PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID
+            )
+            ->getStartColor()
+            ->setARGB(
+                'FFDCDCDE'
+            );
+
+        /*
+        * Altura do cabeçalho.
+        */
+        $sheet
+            ->getRowDimension(4)
+            ->setRowHeight(22);
+
+        /*
+        * Filtros nativos do Excel.
+        */
+        $sheet->setAutoFilter(
+            'A4:E' . $ultima_linha
+        );
+
+        /*
+        * Congela o título e o cabeçalho.
+        *
+        * Ao rolar a planilha, as linhas 1 a 4
+        * permanecem visíveis.
+        */
+        $sheet->freezePane(
+            'A5'
+        );
+
+        /*
+        * Largura das colunas.
+        */
+        $sheet
+            ->getColumnDimension('A')
+            ->setWidth(10);
+
+        $sheet
+            ->getColumnDimension('B')
+            ->setWidth(25);
+
+        $sheet
+            ->getColumnDimension('C')
+            ->setWidth(15);
+
+        $sheet
+            ->getColumnDimension('D')
+            ->setWidth(55);
+
+        $sheet
+            ->getColumnDimension('E')
+            ->setWidth(35);
+
+        /*
+        * Alinhamento vertical.
+        */
+        $sheet
+            ->getStyle(
+                'A1:E' . $ultima_linha
+            )
+            ->getAlignment()
+            ->setVertical(
+                \PhpOffice\PhpSpreadsheet\Style\Alignment::VERTICAL_CENTER
+            );
+
+        /*
+        * Nome do arquivo.
+        */
+        $nome_arquivo = sprintf(
+            'resultado-sorteio-%d-%s.xlsx',
+            $sorteio_id,
+            wp_date('Y-m-d')
+        );
+
+        /*
+        * Remove qualquer buffer anterior.
+        */
+        while (ob_get_level()) {
+            ob_end_clean();
+        }
+
+        nocache_headers();
+
+        header(
+            'Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        );
+
+        header(
+            'Content-Disposition: attachment; filename="' .
+            $nome_arquivo .
+            '"'
+        );
+
+        header(
+            'Cache-Control: max-age=0'
+        );
+
+        $writer =
+            new \PhpOffice\PhpSpreadsheet\Writer\Xlsx(
+                $spreadsheet
+            );
+
+        $writer->save(
+            'php://output'
+        );
+
+        $spreadsheet->disconnectWorksheets();
+
+        unset($spreadsheet);
+
+        exit;
     }
 
     public static function pagina_sorteios()
     {
+        if (!current_user_can('manage_options')) {
+            wp_die(
+                'Você não tem permissão para acessar esta página.'
+            );
+        }
+
+        $sorteio_id = isset($_GET['sorteio'])
+            ? absint($_GET['sorteio'])
+            : 0;
+
+        if ($sorteio_id > 0) {
+
+            self::renderizar_resultado_sorteio(
+                $sorteio_id
+            );
+
+            return;
+        }
+
+        self::renderizar_lista_sorteios();
+    }
+
+    private static function obter_sorteio($sorteio_id)
+    {
+        global $wpdb;
+
+        $table_sorteios = $wpdb->prefix . 'sorteios';
+
+        return $wpdb->get_row(
+            $wpdb->prepare(
+                "SELECT *
+                FROM {$table_sorteios}
+                WHERE id = %d",
+                $sorteio_id
+            )
+        );
+    }
+
+    private static function obter_dres_sorteio($sorteio_id)
+    {
+        global $wpdb;
+
+        $table_dres = $wpdb->prefix . 'sorteio_dres';
+
+        return $wpdb->get_results(
+            $wpdb->prepare(
+                "SELECT *
+                FROM {$table_dres}
+                WHERE sorteio_id = %d
+                ORDER BY dre ASC",
+                $sorteio_id
+            )
+        );
+    }
+
+    private static function obter_unidades_sorteio($sorteio_id)
+    {
+        global $wpdb;
+
+        $table_unidades = $wpdb->prefix . 'sorteio_unidades';
+
+        return $wpdb->get_results(
+            $wpdb->prepare(
+                "SELECT *
+                FROM {$table_unidades}
+                WHERE sorteio_id = %d
+                ORDER BY dre ASC, ordem_sorteio ASC",
+                $sorteio_id
+            )
+        );
+    }
+
+    private static function obter_historico_sorteio(
+        $sorteio_id
+    ) {
+        global $wpdb;
+
+        $table_historico =
+            $wpdb->prefix . 'sorteio_historico';
+
+        $table_unidades =
+            $wpdb->prefix . 'sorteio_unidades';
+
+        $table_sorteios =
+            $wpdb->prefix . 'sorteios';
+
+        $table_users =
+            $wpdb->users;
+
+        return $wpdb->get_results(
+            $wpdb->prepare(
+                "SELECT
+                    h.*,
+                    u.nome_unidade,
+                    u.cie,
+                    wp.display_name AS usuario_nome,
+                    s.arquivo_nome,
+                    s.arquivo_caminho
+                FROM {$table_historico} h
+
+                LEFT JOIN {$table_unidades} u
+                    ON u.id = h.unidade_id
+
+                LEFT JOIN {$table_users} wp
+                    ON wp.ID = h.usuario_id
+
+                LEFT JOIN {$table_sorteios} s
+                    ON s.id = h.sorteio_id
+
+                WHERE h.sorteio_id = %d
+
+                ORDER BY
+                    h.created_at DESC,
+                    h.id DESC",
+                $sorteio_id
+            )
+        );
+    }
+
+    private static function obter_sorteios()
+    {
+        global $wpdb;
+
+        $table_sorteios = $wpdb->prefix . 'sorteios';
+        $table_dres = $wpdb->prefix . 'sorteio_dres';
+
+        return $wpdb->get_results(
+            "
+            SELECT
+                s.id,
+                s.nome,
+                s.data_sorteio,
+                s.usuario_sorteio,
+                COUNT(DISTINCT d.dre) AS total_dres,
+                SUM(d.total_unidades) AS total_unidades
+            FROM {$table_sorteios} s
+            LEFT JOIN {$table_dres} d
+                ON d.sorteio_id = s.id
+            WHERE s.data_sorteio IS NOT NULL
+            GROUP BY s.id
+            ORDER BY s.data_sorteio DESC
+            "
+        );
+    }
+
+    private static function agrupar_unidades_por_dre($unidades)
+    {
+        $resultado = [];
+
+        foreach ($unidades as $unidade) {
+            if (!isset($resultado[$unidade->dre])) {
+                $resultado[$unidade->dre] = [];
+            }
+
+            $resultado[$unidade->dre][] = $unidade;
+        }
+
+        return $resultado;
+    }
+
+
+    private static function renderizar_tabela_resultado(
+    array $unidades,
+    int $sorteio_id
+    ) {
+        $dres = [];
+
+        foreach ($unidades as $unidade) {
+            if (!empty($unidade->dre)) {
+                $dres[] = $unidade->dre;
+            }
+        }
+
+        $dres = array_values(
+            array_unique($dres)
+        );
+
+        sort($dres);
         ?>
 
-        <div class="wrap sorteios-wrap">
+        <div class="sorteios-resumo-status">
 
-            <h1>Sorteios</h1>
+            <div class="sorteios-resumo-status-item">
+                <span class="sorteios-resumo-status-numero numero-aguardando" data-resumo-status="aguardando_confirmacao">
+                    0
+                </span>
 
-            <p>
-                Gerenciamento de sorteios de unidades escolares.
-            </p>
+                <span class="sorteios-resumo-status-label">
+                    Aguardando confirmação
+                </span>
+            </div>
 
+            <div class="sorteios-resumo-status-item">
+                <span class="sorteios-resumo-status-numero numero-confirm" data-resumo-status="confirmado">
+                    0
+                </span>
+
+                <span class="sorteios-resumo-status-label">
+                    Confirmados
+                </span>
+            </div>
+
+            <div class="sorteios-resumo-status-item">
+                <span class="sorteios-resumo-status-numero numero-espera" data-resumo-status="lista_espera">
+                    0
+                </span>
+
+                <span class="sorteios-resumo-status-label">
+                    Lista de espera
+                </span>
+            </div>
+
+            <div class="sorteios-resumo-status-item">
+                <span class="sorteios-resumo-status-numero numero-desistencia" data-resumo-status="desistencia">
+                    0
+                </span>
+
+                <span class="sorteios-resumo-status-label">
+                    Desistência
+                </span>
+            </div>
+
+        </div>
+
+        <div class="sorteios-filtros">
+
+            <div class="sorteios-filtro sorteios-filtro-multiselect">
+
+                <label>
+                    DRE
+                </label>
+
+                <button
+                    type="button"
+                    class="button sorteios-filtro-toggle"
+                    data-filtro="dre"
+                >
+                    <span class="sorteios-filtro-label">
+                        Todas
+                    </span>
+
+                    <span class="dashicons dashicons-arrow-down-alt2"></span>
+                </button>
+
+                <div
+                    class="sorteios-filtro-dropdown"
+                    data-filtro-dropdown="dre"
+                >
+
+                    <div class="sorteios-filtro-acoes">
+
+                        <button
+                            type="button"
+                            class="button-link sorteios-filtro-todos"
+                        >
+                            Todos
+                        </button>
+
+                        <button
+                            type="button"
+                            class="button-link sorteios-filtro-nenhum"
+                        >
+                            Nenhum
+                        </button>
+
+                    </div>
+
+                    <div class="sorteios-filtro-opcoes">
+
+                        <?php foreach ($dres as $dre) : ?>
+
+                            <label class="sorteios-filtro-opcao">
+
+                                <input
+                                    type="checkbox"
+                                    value="<?php echo esc_attr($dre); ?>"
+                                    data-filtro-checkbox="dre"
+                                    checked
+                                >
+
+                                <span>
+                                    <?php echo esc_html($dre); ?>
+                                </span>
+
+                            </label>
+
+                        <?php endforeach; ?>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+
+            <div class="sorteios-filtro">
+
+                <label for="filtro-nome-unidade">
+                    Nome da Unidade
+                </label>
+
+                <input
+                    type="text"
+                    id="filtro-nome-unidade"
+                    class="sorteios-filtro-texto"
+                    placeholder="Digite o nome da unidade..."
+                >
+
+            </div>
+
+
+            <div class="sorteios-filtro sorteios-filtro-multiselect">
+
+                <label>
+                    Status
+                </label>
+
+                <button
+                    type="button"
+                    class="button sorteios-filtro-toggle"
+                    data-filtro="status"
+                >
+                    <span class="sorteios-filtro-label">
+                        Todos
+                    </span>
+
+                    <span class="dashicons dashicons-arrow-down-alt2"></span>
+                </button>
+
+                <div
+                    class="sorteios-filtro-dropdown"
+                    data-filtro-dropdown="status"
+                >
+
+                    <div class="sorteios-filtro-acoes">
+
+                        <button
+                            type="button"
+                            class="button-link sorteios-filtro-todos"
+                        >
+                            Todos
+                        </button>
+
+                        <button
+                            type="button"
+                            class="button-link sorteios-filtro-nenhum"
+                        >
+                            Nenhum
+                        </button>
+
+                    </div>
+
+                    <div class="sorteios-filtro-opcoes">
+
+                        <label class="sorteios-filtro-opcao">
+
+                            <input
+                                type="checkbox"
+                                value="aguardando_confirmacao"
+                                data-filtro-checkbox="status"
+                                checked
+                            >
+
+                            <span>
+                                Sorteado – Aguardando confirmação
+                            </span>
+
+                        </label>
+
+                        <label class="sorteios-filtro-opcao">
+
+                            <input
+                                type="checkbox"
+                                value="confirmado"
+                                data-filtro-checkbox="status"
+                                checked
+                            >
+
+                            <span>
+                                Sorteado – Confirmado
+                            </span>
+
+                        </label>
+
+                        <label class="sorteios-filtro-opcao">
+
+                            <input
+                                type="checkbox"
+                                value="lista_espera"
+                                data-filtro-checkbox="status"
+                                checked
+                            >
+
+                            <span>
+                                Lista de espera
+                            </span>
+
+                        </label>
+
+                        <label class="sorteios-filtro-opcao">
+
+                            <input
+                                type="checkbox"
+                                value="desistencia"
+                                data-filtro-checkbox="status"
+                                checked
+                            >
+
+                            <span>
+                                Desistência
+                            </span>
+
+                        </label>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+            <button
+                type="button"
+                class="button sorteios-limpar-filtros"
+                id="sorteios-limpar-filtros"
+            >
+                Limpar filtros
+            </button>
+
+            <button
+                type="button"
+                class="button button-primary"
+                id="sorteios-exportar-resultados"
+                data-sorteio-id="<?php echo esc_attr(
+                    $sorteio_id
+                ); ?>"
+            >
+                Exportar resultados
+            </button>
+
+        </div>
+
+
+        <table
+            id="tabela-resultado-sorteio"
+            class="widefat striped"
+        >
+
+            <thead>
+                <tr>
+                    <th>Ordem</th>
+                    <th>DRE</th>
+                    <th>Nome da Unidade</th>
+                    <th>Status</th>
+                    <th>Ação</th>
+                </tr>
+            </thead>
+
+            <tbody>
+
+                <?php foreach ($unidades as $unidade) : ?>
+
+                    <tr
+                        data-unidade-id="<?php echo esc_attr(
+                            $unidade->id
+                        ); ?>"
+                    >
+
+                        <td>
+                            <?php echo esc_html(
+                                $unidade->ordem_sorteio
+                            ); ?>
+                        </td>
+
+                        <td data-coluna="dre">
+                            <?php echo esc_html(
+                                $unidade->dre
+                            ); ?>
+                        </td>
+
+                        <td
+                            data-coluna="nome"
+                            data-cie="<?php echo esc_attr(
+                                $unidade->cie
+                            ); ?>"
+                        >
+
+                            <strong>
+                                <?php echo esc_html(
+                                    $unidade->nome_unidade
+                                ); ?>
+                            </strong>
+
+                            <br>
+
+                            <small>
+                                CIE:
+                                <?php echo esc_html(
+                                    $unidade->cie
+                                ); ?>
+                            </small>
+
+                        </td>
+
+                        <td
+                            data-coluna="status"
+                            data-search="<?php echo esc_attr(
+                                $unidade->status
+                            ); ?>"
+                            class="sorteios-coluna-status"
+                        >
+                            <?php
+                            $status_labels = [
+                                'aguardando_confirmacao' => 'Sorteado – Aguardando confirmação',
+                                'confirmado' => 'Sorteado – Confirmado',
+                                'lista_espera' => 'Lista de espera',
+                                'desistencia' => 'Desistência',
+                            ];
+
+                            $status_classes = [
+                                'aguardando_confirmacao' => 'aguardando-confirmacao',
+                                'confirmado' => 'confirmado',
+                                'lista_espera' => 'lista-espera',
+                                'desistencia' => 'desistencia',
+                            ];
+
+                            $status_label = $status_labels[$unidade->status]
+                                ?? $unidade->status;
+
+                            $status_class = $status_classes[$unidade->status]
+                                ?? 'desconhecido';
+                            ?>
+
+                            <span
+                                class="sorteios-status sorteios-status-<?php echo esc_attr(
+                                    $status_class
+                                ); ?>"
+                            >
+                                <?php echo esc_html($status_label); ?>
+                            </span>
+                        </td>
+
+                        <td>
+
+                            <button
+                                type="button"
+                                class="button sorteios-alterar-status"
+                                data-unidade-id="<?php echo esc_attr(
+                                    $unidade->id
+                                ); ?>"
+                                data-status="<?php echo esc_attr(
+                                    $unidade->status
+                                ); ?>"
+                            >
+                                Alterar Status
+                            </button>
+
+                        </td>
+
+                    </tr>
+
+                <?php endforeach; ?>
+
+            </tbody>
+
+        </table>
+
+        <div
+            id="modal-alterar-status"
+            class="sorteios-modal"
+            style="display: none;"
+        >
+            <div class="sorteios-modal-overlay"></div>
+
+            <div class="sorteios-modal-conteudo">
+                <div class="sorteios-modal-cabecalho">
+                    <h2>Alterar Status</h2>
+
+                    <button
+                        type="button"
+                        class="sorteios-modal-fechar"
+                        aria-label="Fechar"
+                    >
+                        &times;
+                    </button>
+                </div>
+
+                <div class="sorteios-modal-corpo">
+
+                    <input
+                        type="hidden"
+                        id="sorteios-unidade-id"
+                        value=""
+                    >
+
+                    <p>
+                        Selecione o novo status da unidade:
+                    </p>
+
+                    <div class="sorteios-status-opcoes">
+
+                        <label>
+                            <input
+                                type="radio"
+                                name="sorteios-status"
+                                value="aguardando_confirmacao"
+                            >
+
+                            Sorteado – Aguardando confirmação
+                        </label>
+
+                        <label>
+                            <input
+                                type="radio"
+                                name="sorteios-status"
+                                value="confirmado"
+                            >
+
+                            Sorteado – Confirmado
+                        </label>
+
+                        <label>
+                            <input
+                                type="radio"
+                                name="sorteios-status"
+                                value="lista_espera"
+                            >
+
+                            Lista de espera
+                        </label>
+
+                        <label>
+                            <input
+                                type="radio"
+                                name="sorteios-status"
+                                value="desistencia"
+                            >
+
+                            Desistência
+                        </label>
+
+                    </div>
+
+                </div>
+
+                <div class="sorteios-modal-rodape">
+
+                    <button
+                        type="button"
+                        class="button sorteios-modal-cancelar"
+                    >
+                        Cancelar
+                    </button>
+
+                    <button
+                        type="button"
+                        class="button button-primary sorteios-modal-salvar"
+                    >
+                        Salvar
+                    </button>
+
+                </div>
+            </div>
         </div>
 
         <?php
     }
+
+
+    private static function renderizar_resultado_sorteio($sorteio_id)
+    {
+        $aba_ativa = isset($_GET['aba'])
+            ? sanitize_key($_GET['aba'])
+            : 'resultado';
+
+        $abas_permitidas = [
+            'resultado',
+            'historico',
+        ];
+
+        if (!in_array($aba_ativa, $abas_permitidas, true)) {
+            $aba_ativa = 'resultado';
+        }
+
+        $sorteio = self::obter_sorteio(
+            $sorteio_id
+        );
+
+        if (!$sorteio) {
+            ?>
+            <div class="wrap">
+                <h1>Sorteio</h1>
+
+                <div class="notice notice-error">
+                    <p>
+                        Sorteio não encontrado.
+                    </p>
+                </div>
+            </div>
+            <?php
+
+            return;
+        }
+
+        /*
+        * Os dados de resultado só precisam ser carregados
+        * quando a aba Resultado estiver ativa.
+        */
+        $dres = [];
+        $unidades = [];
+
+        if ($aba_ativa === 'resultado') {
+            $dres = self::obter_dres_sorteio(
+                $sorteio_id
+            );
+
+            $unidades = self::obter_unidades_sorteio(
+                $sorteio_id
+            );
+
+            $total_unidades_aptas = count($unidades);
+            $total_dres = count($dres);
+
+            $quantidade_por_dre = !empty($dres)
+                ? (int) $dres[0]->quantidade_vagas
+                : 0;
+
+            $usuario_sorteio = get_userdata(
+                $sorteio->usuario_sorteio
+            );
+
+            $nome_usuario_sorteio = $usuario_sorteio
+                ? $usuario_sorteio->display_name
+                : 'Usuário não identificado';
+        }
+
+        ?>
+        <div class="wrap sorteios-admin">
+
+            <div class="sorteios-cabecalho">
+
+                <h1>
+                    <?php echo esc_html(
+                        $sorteio->nome
+                    ); ?>
+                </h1>
+
+                <p class="sorteios-cabecalho-descricao">
+                    Sorteio das unidades educacionais aptas
+                    a participar do Rolê Agroecológico,
+                    a partir da planilha de hortas enviada
+                    pela CODAE.
+                </p>
+
+            </div>
+
+            <?php
+            self::renderizar_abas_sorteio(
+                $sorteio_id,
+                $aba_ativa
+            );
+            ?>            
+
+            <?php if ($aba_ativa === 'resultado') : ?>
+
+                <?php if (isset($_GET['sucesso'])) : ?>
+
+                    <div class="sorteios-mensagem-sucesso">
+                        <strong>
+                            Sorteio realizado com sucesso.
+                        </strong>
+
+                        <?php
+                        echo esc_html(
+                            sprintf(
+                                '%d unidades aptas em %d DREs · %d por DRE · executado em %s às %s por %s.',
+                                $total_unidades_aptas,
+                                $total_dres,
+                                $quantidade_por_dre,
+                                mysql2date(
+                                    'd/m/Y',
+                                    $sorteio->data_sorteio
+                                ),
+                                mysql2date(
+                                    'H:i',
+                                    $sorteio->data_sorteio
+                                ),
+                                $nome_usuario_sorteio
+                            )
+                        );
+                        ?>
+                    </div>
+
+                <?php endif; ?>                
+
+                <?php
+                self::renderizar_tabela_resultado(
+                    $unidades,
+                    $sorteio_id
+                );
+                ?>
+
+                <div class="sorteios-dres-detalhes">
+
+                    <details class="sorteios-colapsavel">
+
+                        <summary class="sorteios-colapsavel-titulo">
+                            <span>
+                                Resumo por DRE
+                            </span>
+
+                            <span class="sorteios-colapsavel-icone"></span>
+                        </summary>
+
+                        <div class="sorteios-colapsavel-conteudo">
+
+                            <?php if (empty($dres)) : ?>
+
+                                <p>
+                                    Nenhuma DRE encontrada.
+                                </p>
+
+                            <?php else : ?>
+
+                                <table class="widefat striped">
+
+                                    <thead>
+                                        <tr>
+                                            <th>DRE</th>
+                                            <th>Unidades aptas</th>
+                                            <th>Vagas</th>
+                                            <th>Selecionadas</th>
+                                            <th>Diferença</th>
+                                            <th>Lista de espera</th>
+                                        </tr>
+                                    </thead>
+
+                                    <tbody>
+
+                                        <?php foreach ($dres as $dre) : ?>
+
+                                            <?php
+                                            $selecionadas = 0;
+                                            $espera = 0;
+
+                                            foreach ($unidades as $unidade) {
+
+                                                if (
+                                                    $unidade->dre !==
+                                                    $dre->dre
+                                                ) {
+                                                    continue;
+                                                }
+
+                                                if (
+                                                    $unidade->tipo_resultado ===
+                                                    'selecionada'
+                                                ) {
+                                                    $selecionadas++;
+                                                }
+
+                                                if (
+                                                    $unidade->tipo_resultado ===
+                                                    'reserva'
+                                                ) {
+                                                    $espera++;
+                                                }
+                                            }
+                                            ?>
+
+                                            <tr>
+
+                                                <td>
+                                                    <?php echo esc_html(
+                                                        $dre->dre
+                                                    ); ?>
+                                                </td>
+
+                                                <td>
+                                                    <?php echo esc_html(
+                                                        $dre->total_unidades
+                                                    ); ?>
+                                                </td>
+
+                                                <td>
+                                                    <?php echo esc_html(
+                                                        $dre->quantidade_vagas
+                                                    ); ?>
+                                                </td>
+
+                                                <td>
+                                                    <?php echo esc_html(
+                                                        $selecionadas
+                                                    ); ?>
+                                                </td>                                               
+
+                                                <td>
+                                                    <?php echo esc_html(
+                                                        $selecionadas - $dre->quantidade_vagas
+                                                    ); ?>
+                                                </td>
+
+                                                <td>
+                                                    <?php echo esc_html(
+                                                        $espera
+                                                    ); ?>
+                                                </td>
+
+                                            </tr>
+
+                                        <?php endforeach; ?>
+
+                                    </tbody>
+
+                                </table>
+
+                            <?php endif; ?>
+
+                        </div>
+
+                    </details>
+
+                </div>
+
+            <?php elseif ($aba_ativa === 'historico') : ?>
+
+                <?php
+                $historico = self::obter_historico_sorteio(
+                    $sorteio_id
+                );
+
+                self::renderizar_historico_sorteio(
+                    $historico
+                );
+                ?>
+
+            <?php endif; ?>
+
+        </div>
+        <?php
+    }  
 
     public static function pagina_novo_sorteio()
     {
@@ -117,7 +1569,39 @@ class Sorteios_Admin
 
         <div class="wrap sorteios-wrap">
 
-            <h1>Novo Sorteio</h1>
+            <div class="sorteios-cabecalho">
+                <h1>Novo sorteio</h1>
+
+                <p class="sorteios-cabecalho-descricao">
+                    Sorteio das unidades educacionais aptas a participar do Rolê Agroecológico, a partir da planilha de hortas enviada pela CODAE.
+                </p>
+            </div>
+
+            <nav
+                class="sorteios-abas"
+                aria-label="Navegação do sorteio"
+            >
+                <span
+                    class="sorteios-aba sorteios-aba-ativa"
+                    aria-current="page"
+                >
+                    Novo sorteio
+                </span>
+
+                <span
+                    class="sorteios-aba sorteios-aba-desabilitada"
+                    aria-disabled="true"
+                >
+                    Resultado
+                </span>
+
+                <span
+                    class="sorteios-aba sorteios-aba-desabilitada"
+                    aria-disabled="true"
+                >
+                    Histórico
+                </span>
+            </nav>
 
             <div class="sorteios-wizard">
 
@@ -266,8 +1750,7 @@ class Sorteios_Admin
         ?>
 
         <p>
-            Envie a planilha contendo as unidades que poderão
-            participar do sorteio.
+            Envie a planilha contendo as unidades que poderão participar do sorteio.
         </p>
 
         <?php if (!$importacao) : ?>
@@ -310,6 +1793,16 @@ class Sorteios_Admin
                         <p class="description">
                             Envie um arquivo Excel nos formatos
                             .xlsx ou .xls.
+                            <br>
+                            <a
+                                href="<?php echo esc_url(
+                                    SORTEIOS_PLUGIN_URL .
+                                    'modelo/modelo-importacao.xlsx'
+                                ); ?>"
+                                download
+                            >
+                                <strong>Baixe o modelo de planilha</strong>
+                            </a>
                         </p>
 
                     </div>
@@ -434,11 +1927,36 @@ class Sorteios_Admin
 
             <?php if (!empty($importacao['erros'])) : ?>
 
+                <div class="notice notice-warning inline">
+
+                    <p>
+                        <strong>
+                            A planilha possui linhas que não poderão ser utilizadas.
+                        </strong>
+
+                        <br>
+
+                        As linhas com erro serão ignoradas caso você continue.
+                        Você também pode enviar uma nova planilha corrigida.
+                    </p>
+
+                </div>
+
+            <?php endif; ?>
+
+            <?php if (empty($importacao['unidades_validas'])) : ?>
+
                 <div class="notice notice-error inline">
 
                     <p>
-                        A planilha possui erros que precisam
-                        ser corrigidos antes de continuar.
+                        <strong>
+                            Não foi encontrada nenhuma unidade válida.
+                        </strong>
+
+                        <br>
+
+                        Verifique o log de importação e envie uma nova planilha
+                        para continuar.
                     </p>
 
                 </div>
@@ -507,7 +2025,7 @@ class Sorteios_Admin
 
             </div>
 
-            <?php if (empty($importacao['erros'])) : ?>
+            <?php if (!empty($importacao['unidades_validas'])) : ?>
 
                 <div class="sorteios-proxima-etapa d-flex justify-content-end">
 
@@ -539,6 +2057,72 @@ class Sorteios_Admin
 
         <?php
         
+    }
+
+    private static function renderizar_abas_sorteio(
+        $sorteio_id,
+        $aba_ativa = 'resultado'
+    ) {
+        $url_novo = admin_url(
+            'admin.php?page=novo-sorteio'
+        );
+
+        $url_resultado = add_query_arg(
+            [
+                'page' => 'sorteios',
+                'sorteio' => $sorteio_id,
+                'aba' => 'resultado',
+            ],
+            admin_url('admin.php')
+        );
+
+        $url_historico = add_query_arg(
+            [
+                'page' => 'sorteios',
+                'sorteio' => $sorteio_id,
+                'aba' => 'historico',
+            ],
+            admin_url('admin.php')
+        );
+        ?>
+
+        <nav
+            class="sorteios-abas"
+            aria-label="Navegação do sorteio"
+        >
+            <a
+                href="<?php echo esc_url($url_novo); ?>"
+                class="sorteios-aba"
+            >
+                Novo sorteio
+            </a>
+
+            <a
+                href="<?php echo esc_url($url_resultado); ?>"
+                class="sorteios-aba <?php echo $aba_ativa === 'resultado'
+                    ? 'sorteios-aba-ativa'
+                    : ''; ?>"
+                <?php if ($aba_ativa === 'resultado') : ?>
+                    aria-current="page"
+                <?php endif; ?>
+            >
+                Resultado
+            </a>
+
+            <a
+                href="<?php echo esc_url($url_historico); ?>"
+                class="sorteios-aba <?php echo $aba_ativa === 'historico'
+                    ? 'sorteios-aba-ativa'
+                    : ''; ?>"
+                <?php if ($aba_ativa === 'historico') : ?>
+                    aria-current="page"
+                <?php endif; ?>
+            >
+                Histórico
+            </a>
+        </nav>
+
+        <?php
     }
 
     private static function montar_subtitulo_dres($importacao)
@@ -603,14 +2187,7 @@ class Sorteios_Admin
             echo '<p>Faça a importação da planilha antes de selecionar as DREs.</p>';
             echo '</div>';
             return;
-        }
-
-        if (!empty($importacao['erros'])) {
-            echo '<div class="notice notice-error inline">';
-            echo '<p>Corrija os erros da planilha antes de continuar.</p>';
-            echo '</div>';
-            return;
-        }
+        }        
 
         if (!empty($_GET['erro'])) {
             $mensagem_erro = sanitize_text_field(
@@ -957,26 +2534,28 @@ class Sorteios_Admin
 
     private static function obter_importacao_temporaria()
     {
-        if (empty($_GET['importacao'])) {
+        $token = '';
+
+        if (isset($_POST['importacao'])) {
+            $token = sanitize_text_field(
+                wp_unslash($_POST['importacao'])
+            );
+        } elseif (isset($_GET['importacao'])) {
+            $token = sanitize_text_field(
+                wp_unslash($_GET['importacao'])
+            );
+        }
+
+        if ($token === '') {
             return false;
         }
 
-        $token = sanitize_text_field(
-            wp_unslash($_GET['importacao'])
-        );
-
-        $key = self::TRANSIENT_PREFIX .
+        $chave = 'sorteios_importacao_' .
             get_current_user_id() .
             '_' .
             $token;
 
-        $resultado = get_transient($key);
-
-        if ($resultado === false) {
-            return false;
-        }
-
-        return $resultado;
+        return get_transient($chave);
     }
 
     private static function redirecionar_com_erro(
@@ -1156,14 +2735,7 @@ class Sorteios_Admin
             echo '<p>Faça a importação da planilha antes de continuar.</p>';
             echo '</div>';
             return;
-        }
-
-        if (!empty($importacao['erros'])) {
-            echo '<div class="notice notice-error inline">';
-            echo '<p>Corrija os erros da planilha antes de continuar.</p>';
-            echo '</div>';
-            return;
-        }
+        }        
 
         $dres_selecionadas = [];
 
@@ -1487,42 +3059,51 @@ class Sorteios_Admin
     }
 
     private static function montar_resumo_ignoradas(
-        array $importacao
+    array $importacao
     ) {
-        $quantidades = [];
+        $quantidades = [
+            'linha_vazia' => 0,
+            'cie_duplicado' => 0,
+            'erro' => 0,
+        ];
 
         foreach (
             $importacao['erros_detalhados']
             as $erro
         ) {
 
-            if (
-                !in_array(
-                    $erro['tipo'],
-                    [
-                        'linha_vazia',
-                        'cie_duplicado',
-                    ],
-                    true
-                )
-            ) {
+            if ($erro['tipo'] === 'linha_vazia') {
+
+                $quantidades['linha_vazia']++;
+
                 continue;
             }
 
-            if (!isset($quantidades[$erro['tipo']])) {
-                $quantidades[$erro['tipo']] = 0;
+            if ($erro['tipo'] === 'cie_duplicado') {
+
+                $quantidades['cie_duplicado']++;
+
+                continue;
             }
 
-            $quantidades[$erro['tipo']]++;
+            /*
+            * Qualquer outro tipo representa uma linha
+            * inválida que não poderá ser utilizada.
+            */
+            $quantidades['erro']++;
         }
 
-        if (empty($quantidades)) {
+        $total_ignoradas = array_sum(
+            $quantidades
+        );
+
+        if ($total_ignoradas === 0) {
             return '';
         }
 
         $partes = [];
 
-        if (!empty($quantidades['linha_vazia'])) {
+        if ($quantidades['linha_vazia'] > 0) {
 
             $partes[] = sprintf(
                 '%d linha%s vazia%s',
@@ -1536,7 +3117,7 @@ class Sorteios_Admin
             );
         }
 
-        if (!empty($quantidades['cie_duplicado'])) {
+        if ($quantidades['cie_duplicado'] > 0) {
 
             $partes[] = sprintf(
                 '%d CIE%s duplicado%s',
@@ -1550,20 +3131,43 @@ class Sorteios_Admin
             );
         }
 
-        if (empty($partes)) {
-            return '';
+        if ($quantidades['erro'] > 0) {
+
+            $partes[] = sprintf(
+                '%d linha%s com erro',
+                $quantidades['erro'],
+                $quantidades['erro'] === 1
+                    ? ''
+                    : 's'
+            );
+        }
+
+        if (count($partes) > 1) {
+
+            $ultima_parte = array_pop(
+                $partes
+            );
+
+            $descricao =
+                implode(', ', $partes) .
+                ' e ' .
+                $ultima_parte;
+
+        } else {
+
+            $descricao = $partes[0];
         }
 
         return sprintf(
             '%d linha%s ignorada%s. %s.',
-            array_sum($quantidades),
-            array_sum($quantidades) === 1
+            $total_ignoradas,
+            $total_ignoradas === 1
                 ? ''
                 : 's',
-            array_sum($quantidades) === 1
+            $total_ignoradas === 1
                 ? ''
                 : 's',
-            implode(' e ', $partes)
+            $descricao
         );
     }
 
@@ -1589,13 +3193,6 @@ class Sorteios_Admin
         if (empty($importacao)) {
             echo '<div class="notice notice-warning inline">';
             echo '<p>Faça a importação da planilha antes de continuar.</p>';
-            echo '</div>';
-            return;
-        }
-
-        if (!empty($importacao['erros'])) {
-            echo '<div class="notice notice-error inline">';
-            echo '<p>Corrija os erros da planilha antes de continuar.</p>';
             echo '</div>';
             return;
         }
@@ -1900,46 +3497,20 @@ class Sorteios_Admin
     {
         if (!current_user_can('manage_options')) {
             wp_die(
-                'Você não possui permissão para realizar esta ação.'
+                'Você não tem permissão para realizar o sorteio.'
             );
         }
 
-        if (
-            empty($_POST['sorteios_nonce']) ||
-            !wp_verify_nonce(
-                $_POST['sorteios_nonce'],
-                'sorteios_realizar'
-            )
-        ) {
-            wp_die(
-                'Falha na validação de segurança.'
-            );
-        }
+        check_admin_referer(
+            'sorteios_realizar',
+            'sorteios_nonce'
+        );
 
-        $token = '';
+        $importacao = self::obter_importacao_temporaria();
 
-        if (!empty($_POST['importacao'])) {
-            $token = sanitize_text_field(
-                wp_unslash($_POST['importacao'])
-            );
-        }
-
-        if ($token === '') {
+        if (!$importacao) {
             self::redirecionar_com_erro(
-                'A importação da planilha não foi identificada.'
-            );
-        }
-
-        $transient_key = self::TRANSIENT_PREFIX .
-            get_current_user_id() .
-            '_' .
-            $token;
-
-        $importacao = get_transient($transient_key);
-
-        if ($importacao === false) {
-            self::redirecionar_com_erro(
-                'A importação da planilha expirou. Importe o arquivo novamente.'
+                'A sessão de importação expirou. Faça o upload da planilha novamente.'
             );
         }
 
@@ -1948,7 +3519,7 @@ class Sorteios_Admin
             ? $importacao['configuracao']
             : [];
 
-        $dres = isset($configuracao['dres'])
+        $dres_selecionadas = isset($configuracao['dres'])
             && is_array($configuracao['dres'])
             ? $configuracao['dres']
             : [];
@@ -1957,101 +3528,144 @@ class Sorteios_Admin
             ? $configuracao['tipo_horta']
             : '';
 
-        if (empty($dres)) {
-            self::redirecionar_etapa_com_erro(
-                2,
-                $token,
-                'Nenhuma DRE foi selecionada.'
-            );
-        }
-
-        if ($tipo_horta === '') {
-            self::redirecionar_etapa_com_erro(
-                3,
-                $token,
-                'Nenhum tipo de horta foi selecionado.'
-            );
-        }
-
         $quantidade = isset($_POST['quantidade'])
             ? absint($_POST['quantidade'])
             : 0;
 
-        if ($quantidade < 1) {
-            self::redirecionar_etapa_com_erro(
-                4,
-                $token,
-                'Informe uma quantidade válida de unidades.'
+        if (empty($dres_selecionadas)) {
+            self::redirecionar_com_erro(
+                'Nenhuma DRE foi selecionada.'
             );
         }
 
-        $dados = isset($importacao['dados'])
-            && is_array($importacao['dados'])
-            ? $importacao['dados']
-            : [];
+        if (
+            !in_array(
+                $tipo_horta,
+                [
+                    'Todos',
+                    'Sim',
+                    'Não',
+                ],
+                true
+            )
+        ) {
+            self::redirecionar_com_erro(
+                'O tipo de horta selecionado é inválido.'
+            );
+        }
 
+        if ($quantidade < 1) {
+            self::redirecionar_com_erro(
+                'A quantidade de unidades por DRE deve ser maior que zero.'
+            );
+        }
+
+        if (
+            empty($importacao['dados']) ||
+            !is_array($importacao['dados'])
+        ) {
+            self::redirecionar_com_erro(
+                'Não existem unidades disponíveis para realizar o sorteio.'
+            );
+        }
+
+        /*
+        * Organiza as unidades elegíveis por DRE.
+        */
         $unidades_por_dre = [];
 
-        foreach ($dres as $dre) {
+        foreach ($dres_selecionadas as $dre) {
             $unidades_por_dre[$dre] = [];
         }
 
-        foreach ($dados as $registro) {
-            if (
-                !isset($registro['dre']) ||
-                !isset($registro['horta'])
-            ) {
-                continue;
-            }
+        foreach ($importacao['dados'] as $unidade) {
 
             if (
+                !isset($unidade['dre']) ||
                 !in_array(
-                    $registro['dre'],
-                    $dres,
+                    $unidade['dre'],
+                    $dres_selecionadas,
                     true
                 )
             ) {
                 continue;
             }
 
-            if ($registro['horta'] !== $tipo_horta) {
+            /*
+            * "Todos" não aplica nenhum filtro sobre a horta.
+            */
+            if (
+                $tipo_horta !== 'Todos' &&
+                $unidade['horta'] !== $tipo_horta
+            ) {
                 continue;
             }
 
-            $unidades_por_dre[$registro['dre']][] = $registro;
-        }        
+            $unidades_por_dre[$unidade['dre']][] = $unidade;
+        }
+
+        /*
+        * Verifica se existe pelo menos uma unidade
+        * apta para o sorteio.
+        */
+        $total_unidades_disponiveis = 0;
+
+        foreach ($unidades_por_dre as $unidades) {
+            $total_unidades_disponiveis += count($unidades);
+        }
+
+        if ($total_unidades_disponiveis === 0) {
+            self::redirecionar_com_erro(
+                'Não existem unidades aptas nas DREs selecionadas para realizar o sorteio.'
+            );
+        }
 
         global $wpdb;
 
-        $tabela_sorteios = $wpdb->prefix . 'sorteios';
-        $tabela_dres = $wpdb->prefix . 'sorteio_dres';
-        $tabela_unidades = $wpdb->prefix . 'sorteio_unidades';
-        $tabela_historico = $wpdb->prefix . 'sorteio_historico';
+        $table_sorteios = $wpdb->prefix . 'sorteios';
+        $table_dres = $wpdb->prefix . 'sorteio_dres';
+        $table_unidades = $wpdb->prefix . 'sorteio_unidades';
+        $table_historico = $wpdb->prefix . 'sorteio_historico';
 
-        $agora = current_time('mysql');
         $usuario_id = get_current_user_id();
 
+        $agora = current_time('mysql');
+
+        /*
+        * Nome do sorteio.
+        */
         $nome_sorteio = sprintf(
-            'Sorteio de unidades - %s',
-            wp_date(
-                'd/m/Y H:i',
-                current_time('timestamp')
-            )
+            'Sorteio - %s',
+            current_time('d/m/Y H:i')
         );
 
+        /*
+        * Arquivo utilizado.
+        */
+        $arquivo_nome = !empty($importacao['arquivo_nome'])
+            ? $importacao['arquivo_nome']
+            : null;
+
+        $arquivo_origem = !empty($importacao['arquivo_caminho'])
+            ? $importacao['arquivo_caminho']
+            : '';
+
+        /*
+        * Inicia a transação.
+        */
+        $wpdb->query('START TRANSACTION');
+
         try {
-            $wpdb->query('START TRANSACTION');
 
             /*
-            * Cria o sorteio.
+            * Cria o registro principal do sorteio.
             */
             $inserido = $wpdb->insert(
-                $tabela_sorteios,
+                $table_sorteios,
                 [
                     'nome' => $nome_sorteio,
-                    'arquivo_nome' => isset($importacao['arquivo_nome'])
-                        ? $importacao['arquivo_nome']
-                        : null,
+                    'arquivo_nome' => $arquivo_nome,
+                    'arquivo_caminho' => null,
                     'usuario_criacao' => $usuario_id,
                     'data_criacao' => $agora,
                     'usuario_sorteio' => $usuario_id,
@@ -2061,6 +3675,7 @@ class Sorteios_Admin
                 [
                     '%s',
                     '%s',
+                    null,
                     '%d',
                     '%s',
                     '%d',
@@ -2069,24 +3684,130 @@ class Sorteios_Admin
                 ]
             );
 
-            if ($inserido === false) {
+            if (!$inserido) {
                 throw new Exception(
-                    'Não foi possível criar o sorteio.'
+                    'Não foi possível criar o registro do sorteio.'
                 );
             }
 
             $sorteio_id = (int) $wpdb->insert_id;
 
             /*
-            * Salva as DREs selecionadas.
+            * Preserva o arquivo utilizado no sorteio.
             */
-            foreach ($dres as $dre) {
-                $total_unidades = count(
-                    $unidades_por_dre[$dre]
+            $arquivo_caminho = null;
+
+            if (
+                $arquivo_origem !== '' &&
+                file_exists($arquivo_origem)
+            ) {
+                $upload_dir = wp_upload_dir();
+
+                $diretorio_sorteio = trailingslashit(
+                    $upload_dir['basedir']
+                ) . 'sorteios/' . $sorteio_id;
+
+                if (
+                    !wp_mkdir_p($diretorio_sorteio)
+                ) {
+                    throw new Exception(
+                        'Não foi possível criar o diretório do arquivo do sorteio.'
+                    );
+                }
+
+                $nome_arquivo = sanitize_file_name(
+                    $arquivo_nome
                 );
 
+                $arquivo_destino = trailingslashit(
+                    $diretorio_sorteio
+                ) . $nome_arquivo;
+
+                if (
+                    !copy(
+                        $arquivo_origem,
+                        $arquivo_destino
+                    )
+                ) {
+                    throw new Exception(
+                        'Não foi possível preservar o arquivo utilizado no sorteio.'
+                    );
+                }
+
+                $arquivo_caminho = str_replace(
+                    trailingslashit($upload_dir['basedir']),
+                    '',
+                    $arquivo_destino
+                );
+
+                $wpdb->update(
+                    $table_sorteios,
+                    [
+                        'arquivo_caminho' => $arquivo_caminho,
+                    ],
+                    [
+                        'id' => $sorteio_id,
+                    ],
+                    [
+                        '%s',
+                    ],
+                    [
+                        '%d',
+                    ]
+                );
+            }
+
+            /*
+            * Registra a realização do sorteio.
+            */
+            $inserido_historico = $wpdb->insert(
+                $table_historico,
+                [
+                    'sorteio_id' => $sorteio_id,
+                    'unidade_id' => null,
+                    'usuario_id' => $usuario_id,
+                    'acao' => 'sorteio_realizado',
+                    'campo' => 'quantidade',
+                    'valor_anterior' => null,
+                    'valor_novo' => (string) $quantidade,
+                    'observacao' => sprintf(
+                        'Sorteio realizado com %d unidade(s) por DRE. Arquivo utilizado: %s',
+                        $quantidade,
+                        $arquivo_nome ?: 'Não informado'
+                    ),
+                    'created_at' => $agora,
+                ],
+                [
+                    '%d',
+                    null,
+                    '%d',
+                    '%s',
+                    '%s',
+                    null,
+                    '%s',
+                    '%s',
+                    '%s',
+                ]
+            );
+
+            if (!$inserido_historico) {
+                throw new Exception(
+                    'Não foi possível registrar o histórico do sorteio.'
+                );
+            }
+
+            /*
+            * Registra as DREs e sorteia as unidades.
+            */
+            foreach ($unidades_por_dre as $dre => $unidades) {
+
+                $total_unidades = count($unidades);
+
+                /*
+                * Registra a DRE.
+                */
                 $inserido = $wpdb->insert(
-                    $tabela_dres,
+                    $table_dres,
                     [
                         'sorteio_id' => $sorteio_id,
                         'dre' => $dre,
@@ -2101,43 +3822,40 @@ class Sorteios_Admin
                     ]
                 );
 
-                if ($inserido === false) {
+                if (!$inserido) {
                     throw new Exception(
-                        'Não foi possível salvar as DREs do sorteio.'
+                        sprintf(
+                            'Não foi possível registrar a DRE %s.',
+                            $dre
+                        )
                     );
                 }
-            }
 
-            /*
-            * Para cada DRE:
-            *
-            * 1. Embaralha as unidades.
-            * 2. Define uma ordem imutável.
-            * 3. As primeiras N são selecionadas.
-            * 4. As demais ficam como reserva.
-            */
-            foreach ($unidades_por_dre as $dre => $unidades) {
+                /*
+                * Embaralha as unidades daquela DRE.
+                */
                 shuffle($unidades);
 
-                foreach ($unidades as $indice => $registro) {
+                foreach ($unidades as $indice => $unidade) {
+
                     $ordem = $indice + 1;
 
-                    $tipo_resultado = $ordem <= $quantidade
-                        ? 'selecionada'
-                        : 'reserva';
-
-                    $status = $ordem <= $quantidade
-                        ? 'pendente'
-                        : 'aguardando';
+                    if ($ordem <= $quantidade) {
+                        $tipo_resultado = 'selecionada';
+                        $status = 'aguardando_confirmacao';
+                    } else {
+                        $tipo_resultado = 'reserva';
+                        $status = 'lista_espera';
+                    }
 
                     $inserido = $wpdb->insert(
-                        $tabela_unidades,
+                        $table_unidades,
                         [
                             'sorteio_id' => $sorteio_id,
-                            'dre' => $registro['dre'],
-                            'cie' => $registro['cie'],
-                            'nome_unidade' => $registro['nome_unidade'],
-                            'horta' => $registro['horta'],
+                            'dre' => $unidade['dre'],
+                            'cie' => $unidade['cie'],
+                            'nome_unidade' => $unidade['nome_unidade'],
+                            'horta' => $unidade['horta'],
                             'ordem_sorteio' => $ordem,
                             'tipo_resultado' => $tipo_resultado,
                             'status' => $status,
@@ -2158,116 +3876,1070 @@ class Sorteios_Admin
                         ]
                     );
 
-                    if ($inserido === false) {
+                    if (!$inserido) {
                         throw new Exception(
-                            'Não foi possível salvar as unidades do sorteio.'
-                        );
-                    }
-
-                    $unidade_id = (int) $wpdb->insert_id;
-
-                    $wpdb->insert(
-                        $tabela_historico,
-                        [
-                            'sorteio_id' => $sorteio_id,
-                            'unidade_id' => $unidade_id,
-                            'usuario_id' => $usuario_id,
-                            'acao' => 'sorteio_realizado',
-                            'campo' => null,
-                            'valor_anterior' => null,
-                            'valor_novo' => $tipo_resultado,
-                            'observacao' => sprintf(
-                                'Unidade recebeu a posição %d no sorteio da DRE %s.',
-                                $ordem,
+                            sprintf(
+                                'Não foi possível registrar a unidade %s da DRE %s.',
+                                $unidade['cie'],
                                 $dre
-                            ),
-                            'created_at' => $agora,
-                        ],
-                        [
-                            '%d',
-                            '%d',
-                            '%d',
-                            '%s',
-                            null,
-                            null,
-                            '%s',
-                            '%s',
-                            '%s',
-                        ]
-                    );
-
-                    if ($wpdb->last_error) {
-                        throw new Exception(
-                            'Não foi possível registrar o histórico do sorteio.'
+                            )
                         );
                     }
                 }
             }
 
             /*
-            * Registra a criação do sorteio no histórico geral.
+            * Tudo foi gravado com sucesso.
             */
-            $wpdb->insert(
-                $tabela_historico,
-                [
-                    'sorteio_id' => $sorteio_id,
-                    'unidade_id' => null,
-                    'usuario_id' => $usuario_id,
-                    'acao' => 'sorteio_realizado',
-                    'campo' => 'quantidade',
-                    'valor_anterior' => null,
-                    'valor_novo' => (string) $quantidade,
-                    'observacao' => sprintf(
-                        'Sorteio realizado para %d DRE%s.',
-                        count($dres),
-                        count($dres) === 1 ? '' : 's'
-                    ),
-                    'created_at' => $agora,
-                ],
-                [
-                    '%d',
-                    null,
-                    '%d',
-                    '%s',
-                    '%s',
-                    null,
-                    '%s',
-                    '%s',
-                    '%s',
-                ]
-            );
+            $wpdb->query('COMMIT');
 
-            if ($wpdb->last_error) {
-                throw new Exception(
-                    'Não foi possível registrar o histórico do sorteio.'
+            /*
+            * Remove o arquivo temporário da importação.
+            */
+            if (
+                $arquivo_origem !== '' &&
+                file_exists($arquivo_origem)
+            ) {
+                wp_delete_file($arquivo_origem);
+            }
+
+            /*
+            * Remove o diretório temporário, se estiver vazio.
+            */
+            if (
+                $arquivo_origem !== '' &&
+                is_dir(dirname($arquivo_origem))
+            ) {
+                @rmdir(dirname($arquivo_origem));
+            }
+
+            /*
+            * Remove o transient da importação.
+            */
+            $token = isset($_GET['importacao'])
+                ? sanitize_text_field(
+                    wp_unslash($_GET['importacao'])
+                )
+                : '';
+
+            if ($token !== '') {
+
+                delete_transient(
+                    'sorteios_importacao_' .
+                    $usuario_id .
+                    '_' .
+                    $token
                 );
             }
 
-            $wpdb->query('COMMIT');
+            wp_safe_redirect(
+                add_query_arg(
+                    [
+                        'page' => 'sorteios',
+                        'sorteio' => $sorteio_id,
+                        'sucesso' => 1,
+                    ],
+                    admin_url('admin.php')
+                )
+            );
+
+            exit;
 
         } catch (Throwable $e) {
 
             $wpdb->query('ROLLBACK');
 
-            self::redirecionar_etapa_com_erro(
-                4,
-                $token,
+            self::redirecionar_com_erro(
                 $e->getMessage()
+            );
+        }
+    }
+
+    public static function alterar_status()
+    {
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error([
+                'message' => 'Você não tem permissão para realizar esta ação.'
+            ], 403);
+        }
+
+        check_ajax_referer(
+            'sorteios_alterar_status',
+            'nonce'
+        );
+
+        $unidade_id = isset($_POST['unidade_id'])
+            ? absint($_POST['unidade_id'])
+            : 0;
+
+        $novo_status = isset($_POST['status'])
+            ? sanitize_key($_POST['status'])
+            : '';
+
+        $status_permitidos = [
+            'aguardando_confirmacao',
+            'confirmado',
+            'lista_espera',
+            'desistencia',
+        ];
+
+        if ($unidade_id <= 0) {
+            wp_send_json_error([
+                'message' => 'Unidade inválida.'
+            ]);
+        }
+
+        if (!in_array($novo_status, $status_permitidos, true)) {
+            wp_send_json_error([
+                'message' => 'Status inválido.'
+            ]);
+        }
+
+        global $wpdb;
+
+        $table_unidades = $wpdb->prefix . 'sorteio_unidades';
+
+        $unidade = $wpdb->get_row(
+            $wpdb->prepare(
+                "SELECT *
+                FROM {$table_unidades}
+                WHERE id = %d",
+                $unidade_id
+            )
+        );
+
+        if (!$unidade) {
+            wp_send_json_error([
+                'message' => 'Unidade não encontrada.'
+            ]);
+        }
+
+        /*
+        * Labels dos status.
+        */
+        $status_labels = [
+            'aguardando_confirmacao' => 'Sorteado – Aguardando confirmação',
+            'confirmado' => 'Sorteado – Confirmado',
+            'lista_espera' => 'Lista de espera',
+            'desistencia' => 'Desistência',
+        ];
+
+        /*
+        * Classes CSS dos status.
+        */
+        $status_classes = [
+            'aguardando_confirmacao' => 'aguardando-confirmacao',
+            'confirmado' => 'confirmado',
+            'lista_espera' => 'lista-espera',
+            'desistencia' => 'desistencia',
+        ];
+
+        /*
+        * Se o status já for o mesmo, não é necessário
+        * atualizar o banco nem registrar histórico.
+        */
+        if ($unidade->status === $novo_status) {
+            wp_send_json_success([
+                'message' => 'O status não foi alterado.',
+                'status' => $novo_status,
+                'label' => $status_labels[$novo_status],
+                'statusClass' => $status_classes[$novo_status]
+            ]);
+        }
+
+        $atualizado = $wpdb->update(
+            $table_unidades,
+            [
+                'status' => $novo_status,
+                'updated_at' => current_time('mysql')
+            ],
+            [
+                'id' => $unidade_id
+            ],
+            [
+                '%s',
+                '%s'
+            ],
+            [
+                '%d'
+            ]
+        );
+
+        if ($atualizado === false) {
+            wp_send_json_error([
+                'message' => 'Não foi possível atualizar o status.'
+            ]);
+        }
+
+        $table_historico = $wpdb->prefix . 'sorteio_historico';
+
+        $usuario_id = get_current_user_id();
+
+        $wpdb->insert(
+            $table_historico,
+            [
+                'sorteio_id' => $unidade->sorteio_id,
+                'unidade_id' => $unidade_id,
+                'usuario_id' => $usuario_id,
+                'acao' => 'alteracao_status',
+                'campo' => 'status',
+                'valor_anterior' => $unidade->status,
+                'valor_novo' => $novo_status,
+                'created_at' => current_time('mysql')
+            ],
+            [
+                '%d',
+                '%d',
+                '%d',
+                '%s',
+                '%s',
+                '%s',
+                '%s',
+                '%s'
+            ]
+        );
+
+        /*
+        * Retorna todas as informações necessárias
+        * para atualizar o status visualmente na tabela.
+        */
+        wp_send_json_success([
+            'message' => 'Status atualizado com sucesso.',
+            'status' => $novo_status,
+            'label' => $status_labels[$novo_status],
+            'statusClass' => $status_classes[$novo_status]
+        ]);
+    }
+
+    private static function renderizar_historico_sorteio(
+        array $historico
+    ) {
+        ?>
+        <div class="sorteios-historico">
+
+            <h2>Histórico</h2>
+
+            <?php if (empty($historico)) : ?>
+
+                <p>
+                    Nenhum registro encontrado no histórico.
+                </p>
+
+            <?php else : ?>
+
+                <table
+                    class="widefat striped"
+                    id="tabela-historico-sorteio"
+                >
+                    <thead>
+                        <tr>
+                            <th>Data</th>
+                            <th>Ação</th>
+                            <th>Unidade</th>
+                            <th>Detalhes</th>
+                            <th>Usuário</th>
+                        </tr>
+                    </thead>
+
+                    <tbody>
+
+                        <?php foreach ($historico as $registro) : ?>
+
+                            <tr>
+
+                                <td>
+                                    <?php
+                                    echo esc_html(
+                                        mysql2date(
+                                            'd/m/Y H:i',
+                                            $registro->created_at
+                                        )
+                                    );
+                                    ?>
+                                </td>
+
+                                <td>
+                                    <?php
+                                    echo esc_html(
+                                        self::obter_label_acao_historico(
+                                            $registro->acao
+                                        )
+                                    );
+                                    ?>
+                                </td>
+
+                                <td>
+                                    <?php if (
+                                        $registro->acao === 'alteracao_status'
+                                    ) : ?>
+
+                                        <strong>
+                                            <?php
+                                            echo esc_html(
+                                                $registro->nome_unidade
+                                            );
+                                            ?>
+                                        </strong>
+
+                                        <br>
+
+                                        <small>
+                                            CIE:
+                                            <?php
+                                            echo esc_html(
+                                                $registro->cie
+                                            );
+                                            ?>
+                                        </small>
+
+                                    <?php else : ?>
+
+                                        —
+
+                                    <?php endif; ?>
+                                </td>
+
+                                <td>
+                                    <?php if (
+                                        $registro->acao === 'sorteio_realizado'
+                                    ) : ?>
+
+                                        <?php
+                                        echo esc_html(
+                                            $registro->observacao
+                                        );
+                                        ?>
+
+                                        <?php if (
+                                            !empty($registro->arquivo_caminho)
+                                        ) : ?>
+
+                                            <?php
+                                            $url_download = wp_nonce_url(
+                                                add_query_arg(
+                                                    [
+                                                        'action' =>
+                                                            'sorteios_baixar_arquivo',
+
+                                                        'sorteio' =>
+                                                            $registro->sorteio_id,
+                                                    ],
+                                                    admin_url(
+                                                        'admin-post.php'
+                                                    )
+                                                ),
+                                                'sorteios_baixar_arquivo_' .
+                                                $registro->sorteio_id
+                                            );
+                                            ?>
+
+                                            <br>
+
+                                            <a
+                                                href="<?php echo esc_url(
+                                                    $url_download
+                                                ); ?>"
+                                                class="button button-small sorteios-baixar-arquivo"
+                                            >
+                                                <span
+                                                    class="dashicons dashicons-download"
+                                                    aria-hidden="true"
+                                                ></span>
+
+                                                Baixar arquivo
+                                            </a>
+
+                                        <?php endif; ?>
+
+                                    <?php elseif (
+                                        $registro->acao === 'alteracao_status'
+                                    ) : ?>
+
+                                        <span
+                                            class="sorteios-status sorteios-status-<?php echo esc_attr(
+                                                self::obter_classe_status(
+                                                    $registro->valor_anterior
+                                                )
+                                            ); ?>"
+                                        >
+                                            <?php
+                                            echo esc_html(
+                                                self::obter_label_status(
+                                                    $registro->valor_anterior
+                                                )
+                                            );
+                                            ?>
+                                        </span>
+
+                                        <span class="sorteios-historico-seta">
+                                            &rarr;
+                                        </span>
+
+                                        <span
+                                            class="sorteios-status sorteios-status-<?php echo esc_attr(
+                                                self::obter_classe_status(
+                                                    $registro->valor_novo
+                                                )
+                                            ); ?>"
+                                        >
+                                            <?php
+                                            echo esc_html(
+                                                self::obter_label_status(
+                                                    $registro->valor_novo
+                                                )
+                                            );
+                                            ?>
+                                        </span>
+
+                                    <?php else : ?>
+
+                                        <?php
+                                        echo esc_html(
+                                            $registro->observacao ?: '—'
+                                        );
+                                        ?>
+
+                                    <?php endif; ?>
+                                </td>
+
+                                <td>
+                                    <?php
+                                    echo esc_html(
+                                        $registro->usuario_nome
+                                        ?: 'Usuário não identificado'
+                                    );
+                                    ?>
+                                </td>
+
+                            </tr>
+
+                        <?php endforeach; ?>
+
+                    </tbody>
+                </table>
+
+            <?php endif; ?>
+
+        </div>
+        <?php
+    }
+
+    private static function obter_label_status($status)
+    {
+        $labels = [
+            'aguardando_confirmacao' => 'Sorteado – Aguardando confirmação',
+            'confirmado' => 'Sorteado – Confirmado',
+            'lista_espera' => 'Lista de espera',
+            'desistencia' => 'Desistência',
+        ];
+
+        return $labels[$status] ?? $status;
+    }
+
+    private static function obter_label_acao_historico($acao)
+    {
+        $labels = [
+            'sorteio_realizado' => 'Sorteio realizado',
+            'alteracao_status' => 'Alteração de status',
+        ];
+
+        return $labels[$acao] ?? $acao;
+    }
+
+    private static function renderizar_lista_sorteios()
+    {
+        $sorteios = self::obter_sorteios();
+        ?>
+
+        <div class="wrap">
+
+            <h1 class="wp-heading-inline mb-4">
+                Sorteios
+            </h1>
+
+            <a
+                href="<?php echo esc_url(
+                    admin_url(
+                        'admin.php?page=novo-sorteio'
+                    )
+                ); ?>"
+                class="page-title-action"
+            >
+                Novo sorteio
+            </a>
+
+            <hr class="wp-header-end">
+
+            <?php if (
+                isset($_GET['excluido']) &&
+                absint($_GET['excluido']) === 1
+            ) : ?>
+
+                <div
+                    class="notice notice-success is-dismissible"
+                >
+                    <p>
+                        Sorteio excluído com sucesso.
+                    </p>
+                </div>
+
+            <?php endif; ?>
+
+            <?php if (empty($sorteios)) : ?>
+
+                <div class="notice notice-info">
+                    <p>
+                        Nenhum sorteio foi realizado até o momento.
+                    </p>
+                </div>
+
+            <?php else : ?>
+
+                <table class="widefat striped">
+
+                    <thead>
+                        <tr>
+                            <th>Nome</th>
+                            <th>Data</th>
+                            <th>Usuário</th>
+                            <th>DREs</th>
+                            <th>Unidades</th>
+                            <th>Ações</th>
+                        </tr>
+                    </thead>
+
+                    <tbody>
+
+                        <?php foreach ($sorteios as $sorteio) : ?>
+
+                            <?php
+                            $usuario = get_userdata(
+                                $sorteio->usuario_sorteio
+                            );
+                            ?>
+
+                            <tr>
+
+                                <td>
+                                    <a
+                                        href="<?php echo esc_url(
+                                            add_query_arg(
+                                                [
+                                                    'page' => 'sorteios',
+                                                    'sorteio' => $sorteio->id
+                                                ],
+                                                admin_url('admin.php')
+                                            )
+                                        ); ?>"
+                                        class=""
+                                    >
+                                        <strong>
+                                            <?php echo esc_html(
+                                                $sorteio->nome
+                                            ); ?>
+                                        </strong>
+                                    </a>
+                                </td>
+
+                                <td>
+                                    <?php
+                                    echo esc_html(
+                                        mysql2date(
+                                            'd/m/Y H:i',
+                                            $sorteio->data_sorteio
+                                        )
+                                    );
+                                    ?>
+                                </td>
+
+                                <td>
+                                    <?php
+                                    echo esc_html(
+                                        $usuario
+                                            ? $usuario->display_name
+                                            : '-'
+                                    );
+                                    ?>
+                                </td>
+
+                                <td>
+                                    <?php echo esc_html(
+                                        $sorteio->total_dres
+                                    ); ?>
+                                </td>
+
+                                <td>
+                                    <?php echo esc_html(
+                                        $sorteio->total_unidades
+                                    ); ?>
+                                </td>
+
+                                <td>
+
+                                    <a
+                                        href="<?php echo esc_url(
+                                            add_query_arg(
+                                                [
+                                                    'page' => 'sorteios',
+                                                    'sorteio' => $sorteio->id
+                                                ],
+                                                admin_url('admin.php')
+                                            )
+                                        ); ?>"
+                                        class="button button-primary"
+                                    >
+                                        Ver sorteio
+                                    </a>
+
+                                    <button
+                                        type="button"
+                                        class="button sorteios-excluir-sorteio sorteios-excluir-sorteio"
+                                        data-sorteio-id="<?php echo esc_attr(
+                                            $sorteio->id
+                                        ); ?>"
+                                        data-sorteio-nome="<?php echo esc_attr(
+                                            $sorteio->nome
+                                        ); ?>"
+                                    >
+                                        Excluir
+                                    </button>
+
+                                </td>
+
+                            </tr>
+
+                        <?php endforeach; ?>
+
+                    </tbody>
+
+                </table>
+
+                <div
+                    class="sorteios-modal"
+                    id="sorteios-modal-excluir"
+                    aria-hidden="true"
+                >
+                    <div class="sorteios-modal-overlay"></div>
+
+                    <div
+                        class="sorteios-modal-conteudo"
+                        role="dialog"
+                        aria-modal="true"
+                        aria-labelledby="sorteios-modal-excluir-titulo"
+                    >
+                        <h2 id="sorteios-modal-excluir-titulo">
+                            Excluir sorteio?
+                        </h2>
+
+                        <p>
+                            Tem certeza de que deseja excluir
+                            <strong id="sorteios-excluir-nome"></strong>?
+                        </p>
+
+                        <p>
+                            Esta ação excluirá permanentemente o sorteio,
+                            seus resultados, histórico e o arquivo utilizado.
+                        </p>
+
+                        <form
+                            method="post"
+                            action="<?php echo esc_url(
+                                admin_url('admin-post.php')
+                            ); ?>"
+                        >
+                            <input
+                                type="hidden"
+                                name="action"
+                                value="sorteios_excluir"
+                            >
+
+                            <input
+                                type="hidden"
+                                name="sorteio_id"
+                                id="sorteios-excluir-id"
+                                value=""
+                            >
+
+                            <?php
+                            wp_nonce_field(
+                                'sorteios_excluir',
+                                'sorteios_nonce'
+                            );
+                            ?>
+
+                            <div class="sorteios-modal-acoes">
+
+                                <button
+                                    type="button"
+                                    class="button"
+                                    id="sorteios-cancelar-exclusao"
+                                >
+                                    Cancelar
+                                </button>
+
+                                <button
+                                    type="submit"
+                                    class="button sorteios-botao-excluir"
+                                >
+                                    Excluir sorteio
+                                </button>
+
+                            </div>
+                        </form>
+                    </div>
+                </div>
+
+            <?php endif; ?>
+
+        </div>
+
+        <?php
+    }
+
+    public static function baixar_arquivo_sorteio()
+    {
+        if (!current_user_can('manage_options')) {
+            wp_die(
+                'Você não tem permissão para baixar este arquivo.'
+            );
+        }
+
+        $sorteio_id = isset($_GET['sorteio'])
+            ? absint($_GET['sorteio'])
+            : 0;
+
+        if ($sorteio_id <= 0) {
+            wp_die(
+                'Sorteio inválido.'
+            );
+        }
+
+        check_admin_referer(
+            'sorteios_baixar_arquivo_' . $sorteio_id
+        );
+
+        $sorteio = self::obter_sorteio(
+            $sorteio_id
+        );
+
+        if (!$sorteio) {
+            wp_die(
+                'Sorteio não encontrado.'
+            );
+        }
+
+        if (empty($sorteio->arquivo_caminho)) {
+            wp_die(
+                'Este sorteio não possui arquivo armazenado.'
+            );
+        }
+
+        $upload_dir = wp_upload_dir();
+
+        if (!empty($upload_dir['error'])) {
+            wp_die(
+                'Não foi possível acessar o diretório de uploads.'
             );
         }
 
         /*
-        * O sorteio já foi efetivamente realizado.
-        * Não precisamos mais manter a configuração temporária.
+        * Diretório base permitido.
         */
-        delete_transient($transient_key);
+        $base_dir = realpath(
+            $upload_dir['basedir']
+        );
 
+        /*
+        * Monta o caminho físico a partir do caminho
+        * relativo armazenado no banco.
+        */
+        $arquivo = realpath(
+            trailingslashit(
+                $upload_dir['basedir']
+            ) .
+            ltrim(
+                $sorteio->arquivo_caminho,
+                '/\\'
+            )
+        );
+
+        if (
+            !$base_dir ||
+            !$arquivo ||
+            !is_file($arquivo)
+        ) {
+            wp_die(
+                'O arquivo do sorteio não foi encontrado.'
+            );
+        }
+
+        /*
+        * Segurança:
+        * garante que o arquivo resolvido continua
+        * dentro do diretório de uploads.
+        */
+        $base_dir = trailingslashit(
+            wp_normalize_path($base_dir)
+        );
+
+        $arquivo_normalizado = wp_normalize_path(
+            $arquivo
+        );
+
+        if (
+            strpos(
+                $arquivo_normalizado,
+                $base_dir
+            ) !== 0
+        ) {
+            wp_die(
+                'Caminho de arquivo inválido.'
+            );
+        }
+
+        /*
+        * Nome apresentado ao usuário.
+        */
+        $nome_arquivo = !empty(
+            $sorteio->arquivo_nome
+        )
+            ? sanitize_file_name(
+                $sorteio->arquivo_nome
+            )
+            : basename($arquivo);
+
+        /*
+        * MIME type.
+        */
+        $tipo_arquivo = wp_check_filetype(
+            $nome_arquivo
+        );
+
+        $mime_type = !empty(
+            $tipo_arquivo['type']
+        )
+            ? $tipo_arquivo['type']
+            : 'application/octet-stream';
+
+        /*
+        * Evita conteúdo anterior corrompendo
+        * o arquivo enviado ao navegador.
+        */
+        while (ob_get_level()) {
+            ob_end_clean();
+        }
+
+        nocache_headers();
+
+        header(
+            'Content-Type: ' .
+            $mime_type
+        );
+
+        header(
+            'Content-Disposition: attachment; filename="' .
+            $nome_arquivo .
+            '"'
+        );
+
+        header(
+            'Content-Length: ' .
+            filesize($arquivo)
+        );
+
+        header(
+            'X-Content-Type-Options: nosniff'
+        );
+
+        readfile(
+            $arquivo
+        );
+
+        exit;
+    }
+
+    public static function excluir_sorteio()
+    {
+        if (!current_user_can('manage_options')) {
+            wp_die(
+                'Você não tem permissão para excluir sorteios.'
+            );
+        }
+
+        check_admin_referer(
+            'sorteios_excluir',
+            'sorteios_nonce'
+        );
+
+        $sorteio_id = isset($_POST['sorteio_id'])
+            ? absint($_POST['sorteio_id'])
+            : 0;
+
+        if ($sorteio_id <= 0) {
+            wp_die(
+                'Sorteio inválido.'
+            );
+        }
+
+        /*
+        * Busca o sorteio antes de iniciar a exclusão.
+        *
+        * Precisaremos das informações do arquivo
+        * depois que o registro for removido.
+        */
+        $sorteio = self::obter_sorteio(
+            $sorteio_id
+        );
+
+        if (!$sorteio) {
+            wp_die(
+                'Sorteio não encontrado.'
+            );
+        }
+
+        global $wpdb;
+
+        $table_sorteios =
+            $wpdb->prefix . 'sorteios';
+
+        $table_dres =
+            $wpdb->prefix . 'sorteio_dres';
+
+        $table_unidades =
+            $wpdb->prefix . 'sorteio_unidades';
+
+        $table_historico =
+            $wpdb->prefix . 'sorteio_historico';
+
+        /*
+        * Inicia a transação.
+        */
+        $wpdb->query(
+            'START TRANSACTION'
+        );
+
+        try {
+
+            /*
+            * Histórico.
+            */
+            $excluido = $wpdb->delete(
+                $table_historico,
+                [
+                    'sorteio_id' => $sorteio_id,
+                ],
+                [
+                    '%d',
+                ]
+            );
+
+            if ($excluido === false) {
+                throw new Exception(
+                    'Não foi possível excluir o histórico do sorteio.'
+                );
+            }
+
+            /*
+            * Unidades.
+            */
+            $excluido = $wpdb->delete(
+                $table_unidades,
+                [
+                    'sorteio_id' => $sorteio_id,
+                ],
+                [
+                    '%d',
+                ]
+            );
+
+            if ($excluido === false) {
+                throw new Exception(
+                    'Não foi possível excluir as unidades do sorteio.'
+                );
+            }
+
+            /*
+            * DREs.
+            */
+            $excluido = $wpdb->delete(
+                $table_dres,
+                [
+                    'sorteio_id' => $sorteio_id,
+                ],
+                [
+                    '%d',
+                ]
+            );
+
+            if ($excluido === false) {
+                throw new Exception(
+                    'Não foi possível excluir as DREs do sorteio.'
+                );
+            }
+
+            /*
+            * Registro principal.
+            */
+            $excluido = $wpdb->delete(
+                $table_sorteios,
+                [
+                    'id' => $sorteio_id,
+                ],
+                [
+                    '%d',
+                ]
+            );
+
+            if ($excluido === false) {
+                throw new Exception(
+                    'Não foi possível excluir o sorteio.'
+                );
+            }
+
+            /*
+            * Como validamos a existência do sorteio antes,
+            * esperamos exatamente um registro removido aqui.
+            */
+            if ($excluido !== 1) {
+                throw new Exception(
+                    'O sorteio não pôde ser excluído.'
+                );
+            }
+
+            $wpdb->query(
+                'COMMIT'
+            );
+
+        } catch (Throwable $e) {
+
+            $wpdb->query(
+                'ROLLBACK'
+            );
+
+            wp_die(
+                esc_html(
+                    $e->getMessage()
+                )
+            );
+        }
+
+        /*
+        * O banco já foi excluído com sucesso.
+        *
+        * Agora removemos os arquivos físicos.
+        */
+        self::excluir_diretorio_sorteio(
+            $sorteio_id
+        );
+
+        /*
+        * Retorna para a listagem.
+        */
         wp_safe_redirect(
             add_query_arg(
                 [
                     'page' => 'sorteios',
-                    'sorteio' => $sorteio_id,
-                    'sucesso' => 1,
+                    'excluido' => 1,
                 ],
                 admin_url('admin.php')
             )
@@ -2275,4 +4947,124 @@ class Sorteios_Admin
 
         exit;
     }
+
+    private static function excluir_diretorio_sorteio(
+        $sorteio_id
+    ) {
+        $sorteio_id = absint(
+            $sorteio_id
+        );
+
+        if ($sorteio_id <= 0) {
+            return false;
+        }
+
+        $upload_dir = wp_upload_dir();
+
+        if (!empty($upload_dir['error'])) {
+            return false;
+        }
+
+        $base_sorteios = trailingslashit(
+            $upload_dir['basedir']
+        ) . 'sorteios';
+
+        $diretorio = trailingslashit(
+            $base_sorteios
+        ) . $sorteio_id;
+
+        /*
+        * Se o diretório não existe, não há
+        * nada para remover.
+        */
+        if (!is_dir($diretorio)) {
+            return true;
+        }
+
+        /*
+        * Valida os caminhos reais antes
+        * de executar qualquer exclusão.
+        */
+        $base_real = realpath(
+            $base_sorteios
+        );
+
+        $diretorio_real = realpath(
+            $diretorio
+        );
+
+        if (
+            !$base_real ||
+            !$diretorio_real
+        ) {
+            return false;
+        }
+
+        $base_real = trailingslashit(
+            wp_normalize_path(
+                $base_real
+            )
+        );
+
+        $diretorio_real = wp_normalize_path(
+            $diretorio_real
+        );
+
+        /*
+        * O diretório precisa estar dentro
+        * de uploads/sorteios/.
+        */
+        if (
+            strpos(
+                $diretorio_real,
+                $base_real
+            ) !== 0
+        ) {
+            return false;
+        }
+
+        /*
+        * Neste plugin cada diretório de sorteio
+        * contém apenas os arquivos preservados
+        * daquele sorteio.
+        */
+        $arquivos = glob(
+            trailingslashit(
+                $diretorio_real
+            ) . '*'
+        );
+
+        if ($arquivos !== false) {
+
+            foreach ($arquivos as $arquivo) {
+
+                if (is_file($arquivo)) {
+                    wp_delete_file(
+                        $arquivo
+                    );
+                }
+            }
+        }
+
+        /*
+        * Remove a pasta agora vazia.
+        */
+        return @rmdir(
+            $diretorio_real
+        );
+    }
+
+    private static function obter_classe_status(
+        $status
+    ) {
+        $classes = [
+            'aguardando_confirmacao' => 'aguardando-confirmacao',
+            'confirmado' => 'confirmado',
+            'lista_espera' => 'lista-espera',
+            'desistencia' => 'desistencia',
+        ];
+
+        return $classes[$status] ?? 'desconhecido';
+    }
+
 }

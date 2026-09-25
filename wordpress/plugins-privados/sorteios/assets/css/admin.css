@@ -1,5 +1,9 @@
+.wrap.sorteios-wrap,
+.wrap.sorteios-admin {
+    max-width: 1180px;
+}
+
 .sorteios-wizard {
-    max-width: 1000px;
     margin-top: 25px;
 }
 
@@ -302,4 +306,503 @@
         grid-template-columns: 1fr;
     }
 
+}
+
+.sorteios-upload-field{
+    margin-bottom: 20px;
+}
+
+/**** Filtros ****/
+.sorteios-filtros {
+    display: flex;
+    gap: 16px;
+    align-items: flex-end;
+    margin: 20px 0;
+}
+
+.sorteios-filtro {
+    position: relative;
+    min-width: 220px;
+}
+
+.sorteios-filtro label {
+    display: block;
+    margin-bottom: 6px;
+    font-weight: 600;
+}
+
+.sorteios-filtro-toggle {
+    width: 100%;
+    min-width: 220px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    text-align: left;
+}
+
+.sorteios-filtro-texto {
+    width: 100%;
+    min-width: 260px;
+}
+
+input#filtro-nome-unidade {
+    border: 1px solid #007cba;
+}
+
+.sorteios-filtro-dropdown {
+    display: none;
+    position: absolute;
+    z-index: 100;
+    top: 100%;
+    left: 0;
+    width: 280px;
+    margin-top: 4px;
+    padding: 10px;
+    background: #fff;
+    border: 1px solid #c3c4c7;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+}
+
+.sorteios-filtro-dropdown.aberto {
+    display: block;
+}
+
+.sorteios-filtro-acoes {
+    display: flex;
+    gap: 12px;
+    padding-bottom: 10px;
+    margin-bottom: 8px;
+    border-bottom: 1px solid #ddd;
+}
+
+.sorteios-filtro-opcoes {
+    max-height: 240px;
+    overflow-y: auto;
+}
+
+.sorteios-filtro-opcao {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 4px;
+    margin: 0;
+    cursor: pointer;
+    font-weight: normal;
+}
+
+.sorteios-filtro-opcao input {
+    margin: 0;
+}
+
+.sorteios-filtro-opcao:hover {
+    background: #f6f7f7;
+}
+
+.sorteios-status {
+    display: inline-block;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.sorteios-status-aguardando-confirmacao {
+    background: #fff8e5;
+    color: #996800;
+}
+
+.sorteios-status-confirmado {
+    background: #edfaef;
+    color: #18733c;
+}
+
+.sorteios-status-lista-espera {
+    background: #eef4ff;
+    color: #315f9e;
+}
+
+.sorteios-status-desistencia {
+    background: #fbeaea;
+    color: #b32d2e;
+}
+
+.sorteios-historico-seta {
+    display: inline-block;
+    margin: 0 6px;
+    color: #646970;
+    font-weight: 600;
+}
+
+.dt-search {
+    display: none;
+}
+
+/**** Modal ****/
+.sorteios-modal {
+    position: fixed;
+    z-index: 100000;
+    inset: 0;
+}
+
+.sorteios-modal-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+}
+
+.sorteios-modal-conteudo {
+    position: relative;
+    width: 500px;
+    max-width: calc(100% - 40px);
+    margin: 10vh auto 0;
+    background: #fff;
+    border-radius: 4px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+}
+
+.sorteios-modal-cabecalho {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 20px;
+    border-bottom: 1px solid #ddd;
+}
+
+.sorteios-modal-cabecalho h2 {
+    margin: 0;
+    font-size: 20px;
+}
+
+.sorteios-modal-fechar {
+    border: 0;
+    background: transparent;
+    font-size: 28px;
+    line-height: 1;
+    cursor: pointer;
+    padding: 0;
+}
+
+.sorteios-modal-corpo {
+    padding: 20px;
+}
+
+.sorteios-status-opcoes {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.sorteios-status-opcoes label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+}
+
+.sorteios-modal-rodape {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    padding: 16px 20px;
+    border-top: 1px solid #ddd;
+}
+
+/**** Histórico ****/
+.sorteios-historico {
+    margin-top: 30px;
+}
+
+.sorteios-historico h2 {
+    margin-bottom: 15px;
+}
+
+#tabela-historico-sorteio th,
+#tabela-historico-sorteio td {
+    vertical-align: middle;
+}
+
+#tabela-historico-sorteio small {
+    color: #646970;
+}
+
+/**** Resumo Status ****/
+.sorteios-resumo-status {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 15px;
+    margin-bottom: 20px;
+}
+
+.sorteios-resumo-status-item {
+    padding: 18px 20px;
+    background: #fff;
+    border: 1px solid #dcdcde;
+    border-radius: 4px;
+}
+
+.sorteios-resumo-status-numero {
+    display: block;
+    margin-bottom: 5px;
+    font-size: 24px;
+    font-weight: 600;
+    line-height: 1.2;
+}
+
+.sorteios-resumo-status-numero.numero-aguardando {
+    color: #996800;
+}
+
+.sorteios-resumo-status-numero.numero-confirm {
+    color: #18733c;
+}
+
+.sorteios-resumo-status-numero.numero-espera {
+    color: #315f9e;
+}
+
+.sorteios-resumo-status-numero.numero-desistencia {
+    color: #b32d2e;
+}
+
+.sorteios-resumo-status-label {
+    display: block;
+    color: #646970;
+    font-size: 13px;
+}
+
+@media (max-width: 900px) {
+
+    .sorteios-resumo-status {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+}
+
+@media (max-width: 600px) {
+
+    .sorteios-resumo-status {
+        grid-template-columns: 1fr;
+    }
+
+}
+
+/**** Cabeçalho e Abas ****/
+
+.sorteios-cabecalho {
+    margin-bottom: 24px;
+}
+
+.sorteios-cabecalho h1 {
+    margin-bottom: 8px;
+}
+
+.sorteios-cabecalho-descricao {
+    margin: 0;
+    color: #646970;
+    font-size: 14px;
+}
+
+.sorteios-abas {
+    display: flex;
+    align-items: flex-end;
+    gap: 0;
+    margin-bottom: 24px;
+    border-bottom: 1px solid #c3c4c7;
+}
+
+.sorteios-aba {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+    padding: 0 20px;
+    margin-bottom: -1px;
+    border-bottom: 3px solid transparent;
+    font-size: 14px;
+    font-weight: 500;
+    text-decoration: none;
+}
+
+.sorteios-aba-ativa {
+    border-bottom-color: #2271b1;
+    color: #1d2327;
+    font-weight: 600;
+}
+
+.sorteios-aba-desabilitada {
+    color: #a7aaad;
+    cursor: default;
+}
+
+.sorteios-aba {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+    padding: 0 20px;
+    margin-bottom: -1px;
+    border-bottom: 3px solid transparent;
+    color: #50575e;
+    font-size: 14px;
+    font-weight: 500;
+    text-decoration: none;
+}
+
+a.sorteios-aba:hover,
+a.sorteios-aba:focus {
+    color: #2271b1;
+}
+
+.sorteios-aba-ativa {
+    border-bottom-color: #2271b1;
+    color: #1d2327;
+    font-weight: 600;
+}
+
+a.sorteios-aba-ativa:hover,
+a.sorteios-aba-ativa:focus {
+    color: #1d2327;
+}
+
+.sorteios-aba-desabilitada {
+    color: #a7aaad;
+    cursor: default;
+}
+
+/**** Mensagem de sucesso ****/
+.sorteios-mensagem-sucesso {
+    margin: 20px 0;
+    padding: 12px 16px;
+    border-left: 4px solid #00a32a;
+    background: #fff;
+    box-shadow: 0 1px 1px rgba(0, 0, 0, 0.04);
+}
+
+.sorteios-mensagem-sucesso strong {
+    color: #1d2327;
+}
+
+/**** Colapsavel ****/
+.sorteios-dres-detalhes {
+    margin-top: 30px;
+}
+
+.sorteios-colapsavel {
+    background: #fff;
+    border: 1px solid #dcdcde;
+    border-radius: 4px;
+}
+
+.sorteios-colapsavel-titulo {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 20px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    user-select: none;
+}
+
+.sorteios-colapsavel-titulo::-webkit-details-marker {
+    display: none;
+}
+
+.sorteios-colapsavel-titulo::marker {
+    display: none;
+    content: '';
+}
+
+.sorteios-colapsavel-titulo:hover {
+    background: #f6f7f7;
+}
+
+.sorteios-colapsavel-icone::before {
+    content: "\f347";
+    font-family: dashicons;
+    font-size: 20px;
+    font-weight: normal;
+}
+
+.sorteios-colapsavel[open]
+.sorteios-colapsavel-icone::before {
+    content: "\f343";
+}
+
+.sorteios-colapsavel[open]
+.sorteios-colapsavel-titulo {
+    border-bottom: 1px solid #dcdcde;
+}
+
+.sorteios-colapsavel-conteudo {
+    padding: 20px;
+}
+
+.sorteios-colapsavel-conteudo table {
+    margin: 0;
+}
+
+/**** Botão para baixar arquivo ****/
+.sorteios-baixar-arquivo {
+    display: inline-flex !important;
+    align-items: center;
+    gap: 4px;
+    margin-top: 8px !important;
+}
+
+.sorteios-baixar-arquivo .dashicons {
+    width: 16px;
+    height: 16px;
+    font-size: 16px;
+}
+
+/**** Modal de exclusão ****/
+.sorteios-modal {
+    display: none;
+}
+
+.sorteios-modal.aberto {
+    display: flex;
+}
+
+.sorteios-modal {
+    position: fixed;
+    z-index: 100000;
+    inset: 0;
+    display: none;
+    align-items: center;
+    justify-content: center;
+}
+
+.sorteios-modal.aberto {
+    display: flex;
+}
+
+.sorteios-modal-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+}
+
+.sorteios-modal-conteudo {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    max-width: 500px;
+    padding: 24px;
+    background: #fff;
+    box-sizing: border-box;
+}
+
+.sorteios-excluir-sorteio {
+    border-color: #d63638 !important;
+    background: #d63638 !important;
+    color: #fff !important;
+}
+
+.sorteios-excluir-sorteio:hover,
+.sorteios-excluir-sorteio:focus {
+    border-color: #b32d2e !important;
+    background: #b32d2e !important;
+    color: #fff !important;
 }
