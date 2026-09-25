@@ -23,22 +23,38 @@ class Sorteios_Importador
             empty($arquivo['tmp_name']) ||
             !isset($arquivo['error'])
         ) {
-            throw new Exception('Nenhum arquivo foi enviado.');
+            throw new Exception(
+                'Nenhum arquivo foi enviado.'
+            );
         }
 
         if ($arquivo['error'] !== UPLOAD_ERR_OK) {
             throw new Exception(
-                self::mensagem_erro_upload($arquivo['error'])
+                self::mensagem_erro_upload(
+                    $arquivo['error']
+                )
             );
         }
 
         $extensao = strtolower(
-            pathinfo($arquivo['name'], PATHINFO_EXTENSION)
+            pathinfo(
+                $arquivo['name'],
+                PATHINFO_EXTENSION
+            )
         );
 
-        $extensoes_permitidas = ['xlsx', 'xls'];
+        $extensoes_permitidas = [
+            'xlsx',
+            'xls',
+        ];
 
-        if (!in_array($extensao, $extensoes_permitidas, true)) {
+        if (
+            !in_array(
+                $extensao,
+                $extensoes_permitidas,
+                true
+            )
+        ) {
             throw new Exception(
                 'Formato de arquivo inválido. Envie um arquivo Excel (.xlsx ou .xls).'
             );
@@ -50,9 +66,96 @@ class Sorteios_Importador
             );
         }
 
+        /*
+        * Diretório de uploads do WordPress.
+        */
+        $upload_dir = wp_upload_dir();
+
+        if (!empty($upload_dir['error'])) {
+            throw new Exception(
+                'Não foi possível acessar o diretório de uploads.'
+            );
+        }
+
+        /*
+        * Cria um identificador único para o arquivo temporário.
+        *
+        * Não utilizamos apenas o nome original para evitar
+        * conflito entre uploads simultâneos.
+        */
+        $identificador = wp_generate_uuid4();
+
+        /*
+        * Diretório temporário:
+        *
+        * uploads/sorteios/temp/{uuid}/
+        */
+        $diretorio_temporario = trailingslashit(
+            $upload_dir['basedir']
+        ) .
+            'sorteios/temp/' .
+            $identificador;
+
+        if (
+            !wp_mkdir_p(
+                $diretorio_temporario
+            )
+        ) {
+            throw new Exception(
+                'Não foi possível criar o diretório temporário do sorteio.'
+            );
+        }
+
+        /*
+        * Mantém o nome original sanitizado.
+        */
+        $arquivo_nome = sanitize_file_name(
+            $arquivo['name']
+        );
+
+        $arquivo_temporario = trailingslashit(
+            $diretorio_temporario
+        ) . $arquivo_nome;
+
+        /*
+        * Move o arquivo enviado pelo PHP para um local
+        * que continuará existindo nas próximas etapas.
+        */
+        if (
+            !move_uploaded_file(
+                $arquivo['tmp_name'],
+                $arquivo_temporario
+            )
+        ) {
+            @rmdir(
+                $diretorio_temporario
+            );
+
+            throw new Exception(
+                'Não foi possível preservar temporariamente o arquivo enviado.'
+            );
+        }
+
+        /*
+        * Agora o PhpSpreadsheet lê nossa cópia persistente,
+        * e não mais o arquivo temporário do PHP.
+        */
         try {
-            $spreadsheet = IOFactory::load($arquivo['tmp_name']);
+
+            $spreadsheet = IOFactory::load(
+                $arquivo_temporario
+            );
+
         } catch (Throwable $e) {
+
+            wp_delete_file(
+                $arquivo_temporario
+            );
+
+            @rmdir(
+                $diretorio_temporario
+            );
+
             throw new Exception(
                 'Não foi possível ler o arquivo Excel. Verifique se o arquivo está íntegro.'
             );
@@ -60,12 +163,31 @@ class Sorteios_Importador
 
         $worksheet = $spreadsheet->getActiveSheet();
 
-        
-
-        return self::processar_planilha(
+        /*
+        * Processa normalmente a planilha.
+        */
+        $resultado = self::processar_planilha(
             $worksheet,
-            $arquivo['name']
+            $arquivo_nome
         );
+
+        /*
+        * Guarda o caminho físico do arquivo.
+        *
+        * Esse valor será armazenado no transient junto
+        * com os demais dados da importação.
+        */
+        $resultado['arquivo_caminho'] =
+            $arquivo_temporario;
+
+        /*
+        * Libera a planilha da memória.
+        */
+        $spreadsheet->disconnectWorksheets();
+
+        unset($spreadsheet);
+
+        return $resultado;
     }
 
     /**
