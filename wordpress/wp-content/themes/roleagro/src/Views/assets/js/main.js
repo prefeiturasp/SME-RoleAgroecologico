@@ -193,6 +193,95 @@ jQuery(document).ready(function($) {
 
     // testeRequestAdminAjax('testeApiReq');
 
+    // MODAL TERMO DE USO
+    const $modal = $('#modal-termo-uso');
+    const $checkbox = $('#aceite-termo');
+    const $botao = $('#btn-aceitar-termo');
+    const $nonce = $('#aceite-termo-nonce');
+
+    if ($modal.length) {
+
+        // URL do admin-ajax.php definida no template do modal.
+        const ajaxUrl = $modal.data('ajax-url');
+
+        // Abre o modal e impede fechamento pelo ESC
+        // ou clique fora.
+        $modal.modal({
+            backdrop: 'static',
+            keyboard: false,
+            show: true
+        });
+
+        // Habilita o botão somente quando
+        // o usuário marcar o checkbox.
+        $checkbox.on('change', function () {
+            $botao.prop(
+                'disabled',
+                !this.checked
+            );
+        });
+
+        // Registra o aceite.
+        $botao.on('click', function () {
+
+            if (!$checkbox.is(':checked')) {
+                return;
+            }
+
+            const textoOriginal = $botao.text();
+
+            // Evita múltiplos cliques enquanto
+            // a requisição está sendo processada.
+            $botao
+                .prop('disabled', true)
+                .text('Salvando...');
+
+            $.ajax({
+                url: ajaxUrl,
+                type: 'POST',
+                dataType: 'json',
+
+                data: {
+                    action: 'aceitar_termo',
+                    nonce: $nonce.val(),
+                    aceite: 1
+                },
+
+                success: function (response) {
+
+                    if (response.success) {
+                        window.location.reload();
+                        return;
+                    }
+
+                    const mensagem =
+                        response.data?.mensagem
+                        || 'Não foi possível registrar o aceite.';
+
+                    $botao
+                        .prop('disabled', false)
+                        .text(textoOriginal);
+
+                    alert(mensagem);
+                },
+
+                error: function () {
+
+                    $botao
+                        .prop('disabled', false)
+                        .text(textoOriginal);
+
+                    alert(
+                        'Não foi possível registrar o aceite.'
+                    );
+                }
+            });
+
+        });
+
+    }
+    // FIM MODAL TERMO DE USO
+
 });
 
 function testeRequestAdminAjax(action){
