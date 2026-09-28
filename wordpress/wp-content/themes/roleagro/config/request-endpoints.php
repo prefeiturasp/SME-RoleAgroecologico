@@ -3,18 +3,6 @@
 use App\Services\ApiEolService;
 use EnviaEmail\classes\Envia_Emails;
 
-add_action( 'phpmailer_init', 'roleagro_email_debug_mailhog_config' );
-function roleagro_email_debug_mailhog_config( $phpmailer ) {
-    $phpmailer->isSMTP();
-    $phpmailer->Host = 'mailhog';
-    $phpmailer->Port = 1025;
-    $phpmailer->SMTPAuth = false;
-    $phpmailer->SMTPAutoTLS = false;
-    $phpmailer->SMTPSecure = '';
-    $phpmailer->From = 'no-reply@roleagro.local';
-    $phpmailer->FromName = 'RoleAgro';
-}
-
 add_action( 'rest_api_init', 'roleagro_email_debug_register_route' );
 function roleagro_email_debug_register_route() {
     if ( ! function_exists( 'is_plugin_active' ) ) {
