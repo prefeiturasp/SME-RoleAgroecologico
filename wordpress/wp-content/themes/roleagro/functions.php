@@ -31,10 +31,6 @@ new App\Controllers\AgendamentoNotificacoesController();
 new App\Controllers\AgendamentoController();
 #### CARREGAMENTO DA CLASSE DE DOS TRANSPORTADORES
 new App\Controllers\TransporteController();
-#### CARREGAMENTO DA CLASSE DE TERMOS DE USO
-new App\Controllers\TermosUsoController();
-use App\Controllers\TermosUsoController;
-TermosUsoController::init();
 
 #### CARREGAMENTO SHORTCODE ACF
 add_action('init', function() {
@@ -167,6 +163,42 @@ add_filter('acf/load_value/name=publico_alvo_roteiro', function($value, $post_id
     return $value;
 }, 10, 3);
 
+add_shortcode( 'historico_notificacao_unidade_produtiva', 'roleagro_shortcode_historico_notificacao_unidade_produtiva' );
+function roleagro_shortcode_historico_notificacao_unidade_produtiva( $atts = array(), $content = null ) {
+    $post_id = get_the_ID();
+
+    if ( ! $post_id || get_post_type( $post_id ) !== 'post_inscricao' ) {
+        return '';
+    }
+
+    $notificada = get_post_meta( $post_id, 'unidade_produtiva_notificada', true );
+    $data_notificacao = get_post_meta( $post_id, 'data_notificacao_unidade_produtiva', true );
+    $forma_notificacao = get_post_meta( $post_id, 'forma_notificacao_unidade_produtiva', true );
+
+    $notificada_texto = ! empty( $notificada ) ? 'Sim' : 'Não';
+    $data_notificacao_texto = empty( $data_notificacao ) ? '—' : date_i18n( 'd/m/Y H:i:s', strtotime( $data_notificacao ) );
+    $forma_notificacao_texto = empty( $forma_notificacao ) ? '—' : ucfirst( sanitize_text_field( $forma_notificacao ) );
+
+    ob_start();
+    echo '<table class="widefat striped" style="border-collapse: collapse; width: 100%;">';
+    echo '    <thead>';
+    echo '        <tr>';
+    echo '            <th style="text-align: left; padding: 10px;">Notificada?</th>';
+    echo '            <th style="text-align: left; padding: 10px;">Data</th>';
+    echo '            <th style="text-align: left; padding: 10px;">Forma</th>';
+    echo '        </tr>';
+    echo '    </thead>';
+    echo '    <tbody>';
+    echo '        <tr>';
+    echo '            <td style="padding: 10px;">' . esc_html( $notificada_texto ) . '</td>';
+    echo '            <td style="padding: 10px;">' . esc_html( $data_notificacao_texto ) . '</td>';
+    echo '            <td style="padding: 10px;">' . esc_html( $forma_notificacao_texto ) . '</td>';
+    echo '        </tr>';
+    echo '    </tbody>';
+    echo '</table>';
+    return ob_get_clean();
+}
+
 #### HABILITA O MENU DE CATEGORIAS E TAGS PARA O POSTTYPE ROTEIRO
 function add_taxonomies_to_custom_post_roteiro() {
 
@@ -205,7 +237,6 @@ function custom_status(){
         'label_count'               => _n_noop( 'Suspended <span class="count">(%s)</span>', 'Suspended <span class="count">(%s)</span>' )
     ));
 }
-
 
 // Adiciona um item externo ao final de um menu específico
 function adicionar_item_externo_ao_menu( $items, $args ) {
@@ -274,6 +305,31 @@ function permissao_funcoes_personalizadas() {
 add_action( 'init', 'permissao_funcoes_personalizadas' );
 
 
-#### INCLUDE TEMPLATE POSTTYPE MONITORAMENTO DE HORTAS
-require_once VIEWS_DIR .'/../Services/MonitoramentoHortas.php';
+#### CARREGAMENTO DA CLASSE DE USUÁRIOS DO SISTEMA
+new App\Classes\UsuarioSistemaCore();
 
+// 1. Exibe o campo personalizado no perfil do usuário
+add_action( 'show_user_profile', 'exibir_campos_customizados_usuario' );
+add_action( 'edit_user_profile', 'exibir_campos_customizados_usuario' );
+
+function exibir_campos_customizados_usuario( $user ) {
+    // Substitua 'chave_do_meu_meta' pelo nome real do metadado no banco de dados
+    $cargo = get_user_meta( $user->ID, 'cargo', true );
+    $unidadeLotacao = get_user_meta( $user->ID, 'unidade_locacao', true );
+    $dadosUE = get_user_meta( $user->ID, 'dados_ue', true );
+
+    if ($cargo){
+    ?>
+        <h3>Informações Adicionais do Servidor</h3>
+        <table class="form-table">
+            <tr>
+                <th><label for="chave_do_meu_meta">Meu Meta Dado</label></th>
+                <td>
+                    <input type="text" name="chave_do_meu_meta" id="chave_do_meu_meta" value="<?php echo esc_attr( $meta_valor ); ?>" class="regular-text" />
+                    <span class="description">Descrição ou instrução sobre este campo.</span>
+                </td>
+            </tr>
+        </table>
+    <?php
+    }
+}

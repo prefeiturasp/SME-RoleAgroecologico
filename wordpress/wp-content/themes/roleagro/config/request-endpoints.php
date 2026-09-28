@@ -3,6 +3,18 @@
 use App\Services\ApiEolService;
 use EnviaEmail\classes\Envia_Emails;
 
+add_action( 'phpmailer_init', 'roleagro_email_debug_mailhog_config' );
+function roleagro_email_debug_mailhog_config( $phpmailer ) {
+    $phpmailer->isSMTP();
+    $phpmailer->Host = 'mailhog';
+    $phpmailer->Port = 1025;
+    $phpmailer->SMTPAuth = false;
+    $phpmailer->SMTPAutoTLS = false;
+    $phpmailer->SMTPSecure = '';
+    $phpmailer->From = 'no-reply@roleagro.local';
+    $phpmailer->FromName = 'RoleAgro';
+}
+
 add_action( 'rest_api_init', 'roleagro_email_debug_register_route' );
 function roleagro_email_debug_register_route() {
     if ( ! function_exists( 'is_plugin_active' ) ) {
@@ -330,6 +342,28 @@ function get_informacoes_acompanhante( $request ) {
     $data = $request->get_json_params();
     $rf = isset( $data['rf'] ) ? sanitize_text_field( $data['rf'] ) : null;
     wp_send_json_success((new ApiEolService())->get_servidor( $rf ));
+}
+
+#### ADD ENDPOINT PARA BUSCAR SERVIDOR PELO RF
+add_action( 'rest_api_init', 'get_servidores_rf' );
+
+function get_servidores_rf() {
+    register_rest_route( 'servidor', '/rf', array(
+        'methods'  => 'POST',
+        'callback' => 'get_informacoes_servidor',
+        'permission_callback' => '__return_true' // Permissão para todos
+    ));
+}
+function get_informacoes_servidor( $request ) {
+    $data = $request->get_json_params();
+    $rf = isset( $data['rf'] ) ? sanitize_text_field( $data['rf'] ) : null;
+    $res = (new ApiEolService())->get_info_servidor( $rf );
+    if(isset($res['nome'])){
+        wp_send_json_success($res);
+    } else {
+        wp_send_json(array('success'=>false));
+    }
+    
 }
 
 

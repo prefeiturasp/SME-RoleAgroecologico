@@ -66,6 +66,16 @@ class ApiEolService {
         return $this->request( "/api/funcionarios/nome-servidor/{$rf}" );
     }
 
+     /**
+     * Busca os todos os dados de um servidor pelo RF
+     */
+    public function get_info_servidor( string $rf ) {
+        $dados = $this->request( "/api/AutenticacaoSgp/{$rf}/dados" );
+        $perfil = $this->request( "/api/Intranet/CarregarPerfisPorLogin/{$rf}" );
+
+        return array_merge($dados, $perfil);
+    }
+
     /**
      * Busca as necessidades especiais pelo código do aluno
      */
