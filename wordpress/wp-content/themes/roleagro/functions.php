@@ -31,6 +31,10 @@ new App\Controllers\AgendamentoNotificacoesController();
 new App\Controllers\AgendamentoController();
 #### CARREGAMENTO DA CLASSE DE DOS TRANSPORTADORES
 new App\Controllers\TransporteController();
+#### CARREGAMENTO DA CLASSE DE TERMOS DE USO
+new App\Controllers\TermosUsoController();
+use App\Controllers\TermosUsoController;
+TermosUsoController::init();
 
 #### CARREGAMENTO SHORTCODE ACF
 add_action('init', function() {
