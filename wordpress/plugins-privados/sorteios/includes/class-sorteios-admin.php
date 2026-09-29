@@ -52,6 +52,11 @@ class Sorteios_Admin
             'admin_post_sorteios_excluir',
             [__CLASS__, 'excluir_sorteio']
         );
+
+        add_filter(
+            'acf/load_field/name=sorteios_permitidos',
+            [__CLASS__, 'carregar_sorteios_permitidos']
+        );
     }
 
     public static function admin_menu()
@@ -5065,6 +5070,41 @@ class Sorteios_Admin
         ];
 
         return $classes[$status] ?? 'desconhecido';
+    }
+
+    public static function carregar_sorteios_permitidos(
+        $field
+    ) {
+        global $wpdb;
+
+        $table_sorteios =
+            $wpdb->prefix . 'sorteios';
+
+        $sorteios = $wpdb->get_results(
+            "
+            SELECT
+                id,
+                nome
+            FROM {$table_sorteios}
+            WHERE status = 'realizado'
+            ORDER BY data_sorteio DESC
+            "
+        );
+
+        /*
+        * Limpa as opções cadastradas manualmente
+        * no ACF.
+        */
+        $field['choices'] = [];
+
+        foreach ($sorteios as $sorteio) {
+
+            $field['choices'][
+                (string) $sorteio->id
+            ] = $sorteio->nome;
+        }
+
+        return $field;
     }
 
 }
