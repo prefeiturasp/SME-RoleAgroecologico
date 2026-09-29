@@ -4,16 +4,6 @@ document.addEventListener("DOMContentLoaded", function () {
     
     for(let i=0; i < qtdUsuarios; i++){
 
-        // Abre o modal ao clicar no botão
-        // document.getElementById("btnEditUsuario"+i).addEventListener("click", function () {
-        //     document.getElementById("divEditUsuario"+i).style.display = "block";
-        // });
-
-        // Fecha o modal ao clicar no 'X'
-        // document.getElementById("fechar-modal"+i).addEventListener("click", function () {
-        //     document.getElementById("divEditUsuario"+i).style.display = "none";
-        // });
-
         // Fecha o modal ao clicar fora da caixa do conteúdo
         window.addEventListener("click", function (event) {
             if (event.target === document.getElementById("divModal") || event.target === document.getElementById("close")) {
@@ -49,12 +39,6 @@ document.addEventListener("DOMContentLoaded", function () {
             }
         });
     });
-
-    // Esconde campos do formulário de Detalhamento do usuário
-    // jQuery("#nomeUsuarioCad").hide();
-    // jQuery("#cpfUsuarioCad").hide();
-    // jQuery("#cargoUsuarioCad").hide();
-    // jQuery("#emailUsuarioCad").hide();
 
     jQuery("#cpfUsuExt").mask('000.000.000-00');
 
