@@ -65,9 +65,9 @@ document.addEventListener("DOMContentLoaded", function () {
         let numeroDeCaracteres = textoDigitado.length;
         if(numeroDeCaracteres == 7){
             
-                exibeCampo("carregamento");
-                escondeCampo("detalhamento");
-                // desabilitaCampo("rfUsuario");
+            exibeCampo("carregamento");
+            escondeCampo("detalhamento");
+            // desabilitaCampo("rfUsuario");
 
             let dados = {
                 rf: textoDigitado
@@ -78,87 +78,95 @@ document.addEventListener("DOMContentLoaded", function () {
                 body: JSON.stringify(dados)
             }).then(response => response.json()).then(data => {
 
-                // Verifica se o usuário está cadastrado
-                checarSeUsuarioExiste(textoDigitado).then(dado => {
-                    let inputEle = document.getElementById("verificaUsuarioCad");
-                    if (dado['existe']) {
-                        inputEle.innerHTML = '<span class="area-destaque-sucesso">Usuário cadastrado!</span> <span class="area-destaque-sucesso"><a href="'+dado['url']+'" class="editUsucad" target="_blank"><span class="dashicons dashicons-edit"></span></a></span>'; 
-                    } else {
-                        inputEle.innerHTML = '<span class="area-destaque-atencao">O usuário não está cadastrado!</span>';
-                    }
-                });
-
-                const conteudoAdicional = document.getElementById("conteudo-detalhes-adicionais");
-
-                if(data['success'] && data['data']['nome'] != null){
-
+                if(!data['success']){
+                    jQuery("#verificaUsuarioCad").html('');
                     escondeCampo("carregamento");
-                    exibeCampo("detalhamento");
-                    // habilitaCampo("rfUsuario");                    
+                    exibeCampo("naoEncontrado");
+                } else {
 
-                    const dados = data['data'];
-
-                    let nome = dados['nome'];
-                    let cpf = dados['cpf'];
-                    let email = dados['email'];
-                    let areasAtuacao = dados['areasAtuacao'];
-                    let cargo = '';
-                    if(!dados['cargosSobrePosto']){
-                        cargo = dados['cargos'][0].nome;
-                    } else{
-                        cargo = dados['cargosSobrePosto'][0].nome;
-                    }
-              
-                    jQuery('#nomeUsuarioCad').val(nome);
-                    jQuery('#cpfUsuarioCad').val(cpf);
-                    jQuery('#emailUsuarioCad').val(email);
-                    jQuery('#cargoUsuarioCad').val(cargo);
-
-                    let html = '<h4>Detalhes Adicionais</h4><hr>';
-                    html += '<table class="table table-sm">';
-                    html += '<tbody>';
-
-                    if(dados['cargosSobrePosto'] != null) {
-                        html += renderizaHtmlAdicional("Sobreposto", dados['cargosSobrePosto']);
-                    }
-
-                    html += renderizaHtmlAdicional("Cargo(s)", dados['cargos']);
-
-                    if(dados['funcoesAtividade'] != null) {
-                        html += renderizaHtmlAdicional("Funções", dados['funcoesAtividade']);
-                    }
-   
-                    html += renderizaHtmlAdicional("UEs Lotação", dados['unidadesLotacao']);
-
-                    if(dados['unidadeExercicio'] != null) {
-                        html += '<tr class="table-active"><td colspan="2">EU Exercício</td></tr>';
-                        html += '<tr>';
-                        html +=     '<th scope="row">'+dados['unidadeExercicio']['codigo']+'</th>';
-                        html +=     '<td>'+dados['unidadeExercicio']['nomeUnidade']+'</td>';
-                        html += '</tr>';
-                    }
-
-                    html += '</tbody>';
-                    html += '</table>';
-                    html += '<hr>';
-
-                    html += '<strong>Área de Atuação: </strong>';
-
-                    areasAtuacao.forEach(item => {
-                        html += '<span class="area-atuacao">'+item+'</span> &nbsp;';
+                    // Verifica se o usuário está cadastrado
+                    checarSeUsuarioExiste(textoDigitado).then(dado => {
+                        let inputEle = document.getElementById("verificaUsuarioCad");
+                        if (dado['existe']) {
+                            inputEle.innerHTML = '<span class="area-destaque-sucesso">Usuário cadastrado!</span> <span class="area-destaque-sucesso"><a href="'+dado['url']+'" class="editUsucad" target="_blank"><span class="dashicons dashicons-edit"></span></a></span>'; 
+                        } else {
+                            inputEle.innerHTML = '<span class="area-destaque-atencao">O usuário não está cadastrado!</span>';
+                        }
                     });
-                    
-                    conteudoAdicional.innerHTML = html;
 
-                 } else {
-                    conteudoAdicional.innerHTML = '<span class="area-destaque-atencao">Servidor não encontrado!</span>';
-                 }
+                    if(data['success'] && data['data']['nome'] != null){
+
+                        const conteudoAdicional = document.getElementById("conteudo-detalhes-adicionais");
+
+                        escondeCampo("carregamento");
+                        exibeCampo("detalhamento");
+                        // habilitaCampo("rfUsuario");                    
+
+                        const dados = data['data'];
+
+                        let nome = dados['nome'];
+                        let cpf = dados['cpf'];
+                        let email = dados['email'];
+                        let areasAtuacao = dados['areasAtuacao'];
+                        let cargo = '';
+                        if(!dados['cargosSobrePosto']){
+                            cargo = dados['cargos'][0].nome;
+                        } else{
+                            cargo = dados['cargosSobrePosto'][0].nome;
+                        }
+                
+                        jQuery('#nomeUsuarioCad').val(nome);
+                        jQuery('#cpfUsuarioCad').val(cpf);
+                        jQuery('#emailUsuarioCad').val(email);
+                        jQuery('#cargoUsuarioCad').val(cargo);
+
+                        let html = '<h4>Detalhes Adicionais</h4><hr>';
+                        html += '<table class="table table-sm">';
+                        html += '<tbody>';
+
+                        if(dados['cargosSobrePosto'] != null) {
+                            html += renderizaHtmlAdicional("Sobreposto", dados['cargosSobrePosto']);
+                        }
+
+                        html += renderizaHtmlAdicional("Cargo(s)", dados['cargos']);
+
+                        if(dados['funcoesAtividade'] != null) {
+                            html += renderizaHtmlAdicional("Funções", dados['funcoesAtividade']);
+                        }
+    
+                        html += renderizaHtmlAdicional("UEs Lotação", dados['unidadesLotacao']);
+
+                        if(dados['unidadeExercicio'] != null) {
+                            html += '<tr class="table-active"><td colspan="2">EU Exercício</td></tr>';
+                            html += '<tr>';
+                            html +=     '<th scope="row">'+dados['unidadeExercicio']['codigo']+'</th>';
+                            html +=     '<td>'+dados['unidadeExercicio']['nomeUnidade']+'</td>';
+                            html += '</tr>';
+                        }
+
+                        html += '</tbody>';
+                        html += '</table>';
+                        html += '<hr>';
+
+                        html += '<strong>Área de Atuação: </strong>';
+
+                        areasAtuacao.forEach(item => {
+                            html += '<span class="area-atuacao">'+item+'</span> &nbsp;';
+                        });
+                        
+                        conteudoAdicional.innerHTML = html;
+
+                    } 
+                }
+
             }).catch((e) => {
                 console.log('Erro ao carregar '+e);
             });
 
         } else if(numeroDeCaracteres < 7){ 
             escondeCampo("detalhamento");
+            jQuery("#verificaUsuarioCad").html('');
+            escondeCampo("naoEncontrado");
         }
     });
 

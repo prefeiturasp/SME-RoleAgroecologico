@@ -70,8 +70,12 @@ class ApiEolService {
      * Busca os todos os dados de um servidor pelo RF
      */
     public function get_info_servidor( string $rf ) {
-        $dados = $this->request( "/api/AutenticacaoSgp/{$rf}/dados" );
         $perfil = $this->request( "/api/Intranet/CarregarPerfisPorLogin/{$rf}" );
+        $dados = $this->request( "/api/AutenticacaoSgp/{$rf}/dados" );
+
+        if($perfil == "Usuário não encontrado no EOL."){
+            return array();
+        }
 
         return array_merge($dados, $perfil);
     }

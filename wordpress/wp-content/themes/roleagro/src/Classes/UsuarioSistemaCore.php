@@ -272,13 +272,6 @@ class UsuarioSistemaCore {
             wp_send_json_error(['message' => 'Usuário ou e-mail já cadastrado.']);
         }
 
-        // // Lista de perfis permitidos para cadastro público (Segurança)
-        // $perfis_permitidos = array('subscriber', 'contributor', 'author');
-        
-        // if (!in_array($role, $perfis_permitidos)) {
-        //     $role = 'subscriber'; // Força um perfil padrão caso enviem algo inválido
-        // }
-
         // Array com os dados do usuário para o wp_insert_user
         $user_data = array(
             'user_login' => $cpf,
