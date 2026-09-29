@@ -332,6 +332,28 @@ function get_informacoes_acompanhante( $request ) {
     wp_send_json_success((new ApiEolService())->get_servidor( $rf ));
 }
 
+#### ADD ENDPOINT PARA BUSCAR SERVIDOR PELO RF
+add_action( 'rest_api_init', 'get_servidores_rf' );
+
+function get_servidores_rf() {
+    register_rest_route( 'servidor', '/rf', array(
+        'methods'  => 'POST',
+        'callback' => 'get_informacoes_servidor',
+        'permission_callback' => '__return_true' // Permissão para todos
+    ));
+}
+function get_informacoes_servidor( $request ) {
+    $data = $request->get_json_params();
+    $rf = isset( $data['rf'] ) ? sanitize_text_field( $data['rf'] ) : null;
+    $res = (new ApiEolService())->get_info_servidor( $rf );
+    if(isset($res['nome'])){
+        wp_send_json_success($res);
+    } else {
+        wp_send_json(array('success'=>false));
+    }
+    
+}
+
 
 #### ADD ENDPOINT PARA SALVAR AGENDAMENTO
 add_action( 'rest_api_init', 'set_agendamento' );

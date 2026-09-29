@@ -1,0 +1,90 @@
+ 
+  <!-- Modal -->
+    <div class="modal fade" id="divModalExterno" tabindex="-1" role="dialog" aria-labelledby="divModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-lg" role="document">
+            <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="divModalLabel">Usuários Externos</h5>        
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true" id="close">&times;</span>
+                </button>
+                
+            </div>
+            <div class="modal-body">
+                    
+                <div id="retorno-mensagem"></div>    
+
+                <form id="form-usuario-externo">
+                    <div class="form-row">
+                        <div class="form-group col-md-12">
+                            <label for="nomeUsuExt">Nome do Usuário *</label>
+                            <input type="text" class="form-control" id="nomeUsuExt" placeholder="Digite o nome completo do usuário" required>
+                        </div>
+
+                        <div class="form-group col-md-6">
+                            <label for="emailUsuExt">E-mail *</label>
+                            <input type="email" class="form-control" id="emailUsuExt" placeholder="Digite o e-mail do usuário" required>
+                        </div>
+                        <div class="form-group col-md-6">
+                            <label for="cpfUsuExt">CPF *</label>
+                            <input type="text" class="form-control" id="cpfUsuExt" placeholder="000.000.000-00" required>
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+
+                        <div class="form-group col-md-6">
+                            <label for="inputState">Perfil de Acesso</label>
+                            <select class="custom-select mr-sm-2" id="perfilUsuExt" required>
+                                <option selected>Selecione o perfil de acesso</option>
+                                {OPTIONS-SELECT}
+                            </select>
+                        </div> 
+
+                        <div class="form-group col-md-4">
+                            <label for="passUsuarioCad">Senha do Usuário</label>
+                            <input type="text" class="form-control" id="passUsuarioCad" placeholder="Digite a senha do usuário" required>
+                        </div>
+                        <div class="form-group col-md-2">
+                            <span class="area-destaque-gera-senha" id="geraSenha">Gerar Senha</span>
+                        </div>
+
+                        * Campos de preenchimeto obrigatório. 
+                        
+                    </div>
+
+                    <hr>
+
+                    <!-- <div class="form-row">           
+                        <div class="form-group col-md-6" style="display: none;">   
+                            <label for="inputCity">CNPJ</label>
+                            <input type="text" class="form-control" id="inputCity">
+                        </div>
+
+                    </div> -->
+                    <div class="form-row">
+                        <div class="form-group col-md-8">
+                            &nbsp;
+                        </div>
+                        
+                        <div class="form-group col-md-1">
+                            <img src="https://i.pinimg.com/originals/e7/56/60/e75660be6aba272e4b651911b6faee55.gif" style="display: none;" width="30px" id="imgCarregamento">
+                        </div>
+
+                        <div class="form-group col-md-3">
+                            <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
+                            &nbsp;
+                            <button type="submit" class="btn btn-primary" id="btnSalvaUsuExt">Salvar</button>
+                        </div>
+                    </div>
+                </form>
+
+
+                                    
+            </div>
+            
+            </div>
+        </div>
+    </div>
+    
+    
