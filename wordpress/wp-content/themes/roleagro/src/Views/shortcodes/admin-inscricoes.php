@@ -11,6 +11,9 @@ if (is_user_logged_in()){
     add_shortcode('conteudo_admin_inscricoes', 'conteudoInscricoes');
     add_shortcode('listagem_estudantes_inscritos', 'listagemEstudantesInscritos');
     add_shortcode('listagem_educadores_acompanhantes', 'listagemEducadoresAcompanhantes');
+    add_shortcode('fornecedor_kit_complementar', 'fornecedorKitComplementar');
+
+    add_shortcode('exibe_btn_envia_email_fornecedor_kit_complementar', 'exibeBtnFornecedorKitComplementar');
 
     add_shortcode('listagem_autorizacoes_estudantes', 'listagemAutorizacaosEstudantes');
     add_shortcode('justificativa_cancelamento_ue', 'justificativaCancelamentoUE'); //add_shortcode('listagem_cancelamento_ue', 'listagemCancelamentoUE');
@@ -29,6 +32,8 @@ if (is_user_logged_in()){
 
     add_filter('acf/load_field/name=observacoes_do_role', 'my_acf_load_field_readonly');
 
+    add_action( 'save_post', 'salvar_kit_complementar', 10, 3 );
+
 }
 
 // Torna readonly o campo de observações de lista de presença
@@ -44,6 +49,188 @@ function conteudoInscricoes() {
 
     echo retornaResumoInscricoes();
 
+}
+
+function exibeBtnFornecedorKitComplementar(){ ?>
+        <div class="acf-like-field">
+
+            <label class="acf-like-toggle">
+                <input 
+                    type="checkbox"
+                    name="notificar_unidade"
+                    value="1"
+                >
+
+                <span class="acf-like-slider">
+                    <div class="acf-switch">
+                        <span class="acf-switch-on" style="min-width: 23.9688px;">Sim</span>
+                        <span class="acf-switch-off" style="min-width: 23.9688px;">Não</span>
+                        <div class="acf-switch-slider">
+                        </div>
+                    </div>
+                </span>
+            </label>
+
+        </div>
+<?php }
+
+function fornecedorKitComplementar(){
+
+    $idInscricao = get_the_ID();
+    $idRoteiro = get_post_meta( $idInscricao, 'id_roteiro_inscricao', true );
+    $idUps = get_post_meta( $idRoteiro, 'ids_up_roteiro', true );
+
+    $idFornecedor = get_post_meta( $idInscricao, '_fornecedor_kit_complementar', true );
+
+    $fornecedorKit = [];
+
+    foreach($idUps as $id){
+        $tipo = get_post_meta($id, 'tipo_cadastro', true);
+
+        if($tipo == 'unidade'){
+            $fornecedor = get_post_meta( $id, 'fornecedor_de_kit_up', true );
+            if($fornecedor){
+                $fornecedorKit[] = array('idUnidade'=>$id, 'nomeUnidade' => get_the_title( $id ));
+            }
+        }
+        
+    }
+
+    $args = array(
+        'post_type' => 'post_up',
+        'meta_query' => array(
+            'relation' => 'OR',
+            array(
+                'key' => 'fornecedor_de_kit_complementar_up',
+                'value' => '1',
+                'compare' => '=' 
+            )
+        ),
+    );
+
+    $unidadesProdutivas = new WP_Query( $args );
+
+    // Array para guardar os resultados se precisar usar depois
+    $posts_encontrados = array();
+
+    if ( $unidadesProdutivas->have_posts() ) {
+        $i=0;
+        while ( $unidadesProdutivas->have_posts() ) {
+            
+            $unidadesProdutivas->the_post();
+            
+            // 1. Pegando o ID e o Título
+            $id_post    = get_the_ID();
+            $titulo_post = get_the_title();
+            
+            if(!in_array($id_post, $idUps)) {
+                $posts_encontrados[] = array(
+                    'id'     => $id_post,
+                    'titulo' => $titulo_post
+                );
+            }
+            
+        } $i++; 
+        
+        ?>
+        <div class="row">
+            <div class="col-4">
+                <form>                    
+                    <select class="custom-select mr-sm-2" id="selectKitComplementar" name="selectKitComplementar">
+                        <option value="">-- Selecione --</option>
+                        <?php  foreach($posts_encontrados as $post){  
+                            $termo_nome = buscaTaxonomia( $post['id'], 'tax_up_regioes' );
+                            $selecionado = '';
+                            if(isset($idFornecedor) && $idFornecedor == $post['id']){
+                                $selecionado = 'selected';
+                            }
+                            ?>
+                            <option value="<?= $post['id'] ?>" <?=$selecionado?> ><?= $post['titulo']; echo ' - ' . $termo_nome; ?> </option>
+                        <?php } ?>
+                    </select>
+                </form>
+            </div>
+       </div>
+       <br>
+       <?php 
+       // Sempre restaure os dados globais do post após o loop  
+       wp_reset_postdata();
+    } else { ?>
+        <div class="row">
+            <div class="col">
+                <div class="card bg-light mb-3" id="card-fornecedor-selecionado">
+                    <div class="card-body">
+                        <strong>NÃO HÁ UNIDADE PRODUTIVA QUE FORNEÇA KIT COMPLEMENTAR.</strong>
+                    </div>
+                </div>
+            </div>
+        </div>
+    <?php } ?>
+
+    <div class="row">
+    
+    <?php
+    if($idFornecedor): 
+    
+    $nomeSetor = get_the_title( $idFornecedor ). ' - ' . buscaTaxonomia( $idFornecedor, 'tax_up_regioes' );
+    $endereco = get_post_meta($idFornecedor, 'logradouro', true) . ', '. get_post_meta($idFornecedor, 'numero', true) .', '. get_post_meta($idFornecedor, 'bairro', true).', '. get_post_meta($idFornecedor, 'cidade', true).', CEP '. get_post_meta($idFornecedor, 'cep', true);
+    $telefone = get_post_meta($idFornecedor, 'telefone_contato', true);
+    ?>
+            <div class="col-4">
+                <div class="card bg-light mb-3" id="card-fornecedor-selecionado">
+                    <div class="card-body">
+                        <strong>FORNECEDOR COMPLEMENTAR SELECIONADO</strong>
+                        <hr> 
+                        <p><strong>NOME:</strong> <?= $nomeSetor ?></p>
+                        <p><strong>ENDEREÇO:</strong> <?= $endereco ?></p>
+                        <p><strong>TELEFONE:</strong> <?= $telefone ?></p>
+                    </div>
+                </div>
+            </div>
+    <?php endif; 
+    
+        if(isset($fornecedorKit) && !empty($fornecedorKit)): 
+            foreach($fornecedorKit as $item): ?>
+                <div class="col-4">
+                    <div class="card bg-light mb-3">
+                        <div class="card-header">ATENÇÃO</div>
+                        <div class="card-body">
+                            <h5 class="card-title">A unidade: <strong><?= $item['nomeUnidade']; ?></strong></h5>
+                            <p class="card-text">Fornece os kits para os participantes do rolê.</p>
+                        </div>
+                    </div>
+                </div>
+        <?php endforeach; 
+        endif; ?>
+
+        </div>
+    <?php
+}
+
+function buscaTaxonomia($idPost, $taxonomia){
+    $tax = wp_get_post_terms( $idPost, $taxonomia, array( 'fields' => 'names' ) );
+    return $tax[0];
+}
+
+// 1. CAPTURAR O GANCHO AO SALVAR O POST
+// Esse gancho roda toda vez que um post ou página é salvo
+function salvar_kit_complementar( $post_id, $post, $update ) {
+    // Evita executar em salvamentos automáticos (autosave)
+    if ( defined( 'DOING_AUTOSAVE' ) && DOING_AUTOSAVE ) {
+        return;
+    }
+
+    // Evita executar em revisões de posts
+    if ( wp_is_post_revision( $post_id ) ) {
+        return;
+    }
+
+    if(!empty($_POST['selectKitComplementar'])){
+        $idFornecedor = sanitize_text_field($_POST['selectKitComplementar']);
+        update_post_meta( $post_id, '_fornecedor_kit_complementar', $idFornecedor );
+    } else {
+        delete_post_meta( $post_id, '_fornecedor_kit_complementar' );
+    }
 }
 
 function listagemEstudantesInscritos() { 
@@ -465,7 +652,6 @@ function getQtdParticipantes($post_id){
 
 }
 
-
 // Adiciona filtro de datas da reserva
 add_action('restrict_manage_posts', function($post_type) {
     global $wpdb;
@@ -665,3 +851,4 @@ add_action('pre_get_posts', function($query) {
         ]);
     }
 });
+
