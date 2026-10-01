@@ -43,6 +43,14 @@ if ( !verifica_usuario_logado_tem_ue() ) {
     );
 }
 
+if (!usuario_pode_inscrever_por_sorteio()) {
+    wp_redirect_with_message(
+        get_the_permalink( $post_ID ),
+        'Você não pode realizar agendamentos neste momento.',
+        'warning'
+    );
+}
+
 if ( !tem_disponibilidade_agendamento() ) {
     wp_redirect( get_the_permalink( $post_ID ) );
     exit;

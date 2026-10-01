@@ -1,0 +1,32 @@
+<div class="wrap">
+    <h1>{TITULO-PAGINA}</h1>
+    <p>{SUBTITULO-PAGINA}</p>
+</div>
+<div class="wp-card-container">
+    
+    <!-- FORMULÁRIO DE FILTRO (HTML) -->
+    <form method="POST" action="{LINK-FORM}" style="margin-bottom: 20px; display: flex; gap: 10px; align-items: center;">
+        <input type="text" name="busca_usuario" class="input-name"value="{TERMO-BUSCA}" placeholder="Buscar por Nome, E-mail, CPF ou RF"/>
+
+        <!-- Filtro por Perfil de Acesso Dinâmico (Plugin Members) -->
+        <select name="filtro_perfil" style="padding: 8px 12px; border: 1px solid #ccc; border-radius: 4px; background-color: #fff;">
+            <option value="">Todos os Perfis</option>
+            {OPTIONS-SELECT}
+        </select>
+
+        <input type="hidden" name="qtd-usuario" id="qtd-usuario" value="{QTD-USUARIO}">
+
+        <button type="submit" class="btn btn-lg btn-submit">Filtrar</button>
+        <button type="reset" class="btn btn-lg btn-limpar" id="limpar-form">Limpar</button>
+    </form>
+
+    <button type="button" class="btn btn-primary" data-toggle="modal" data-target="#divModal">
+        Detalhes Servidor
+    </button>
+    &nbsp;
+    <button type="button" class="btn btn-secundary" data-toggle="modal" data-target="#divModalExterno">
+        Cad. Usuário Externo
+    </button>
+
+</div>
+

@@ -9,10 +9,10 @@ class Sorteios_Database
     /**
      * Versão atual do banco.
      */
-    const DB_VERSION = '1.0.0';
+    const DB_VERSION = '1.1.0';
 
     /**
-     * Cria/atualiza as tabelas do plugin.
+     * Cria as tabelas do plugin.
      */
     public static function ativar()
     {
@@ -35,6 +35,7 @@ class Sorteios_Database
 
             nome VARCHAR(255) NOT NULL,
             arquivo_nome VARCHAR(255) DEFAULT NULL,
+            arquivo_caminho VARCHAR(500) DEFAULT NULL,
 
             usuario_criacao BIGINT UNSIGNED NOT NULL,
             data_criacao DATETIME NOT NULL,
@@ -135,6 +136,63 @@ class Sorteios_Database
         dbDelta($sql_unidades);
         dbDelta($sql_historico);
 
-        update_option('sorteios_db_version', self::DB_VERSION);
+        update_option(
+            'sorteios_db_version',
+            self::DB_VERSION
+        );
+    }
+
+    /**
+     * Executa as migrações necessárias do banco.
+     */
+    public static function atualizar()
+    {
+        $versao_atual = get_option(
+            'sorteios_db_version',
+            '1.0.0'
+        );
+
+        if (
+            version_compare(
+                $versao_atual,
+                '1.1.0',
+                '<'
+            )
+        ) {
+            self::atualizar_para_1_1_0();
+        }
+
+        update_option(
+            'sorteios_db_version',
+            self::DB_VERSION
+        );
+    }
+
+    /**
+     * Migração da versão 1.0.0 para 1.1.0.
+     *
+     * Adiciona o caminho do arquivo original utilizado
+     * no sorteio.
+     */
+    private static function atualizar_para_1_1_0()
+    {
+        global $wpdb;
+
+        $table_sorteios = $wpdb->prefix . 'sorteios';
+
+        $coluna = $wpdb->get_results(
+            $wpdb->prepare(
+                "SHOW COLUMNS FROM {$table_sorteios} LIKE %s",
+                'arquivo_caminho'
+            )
+        );
+
+        if (empty($coluna)) {
+            $wpdb->query(
+                "ALTER TABLE {$table_sorteios}
+                ADD COLUMN arquivo_caminho VARCHAR(500) DEFAULT NULL
+                AFTER arquivo_nome"
+            );
+        }
     }
 }

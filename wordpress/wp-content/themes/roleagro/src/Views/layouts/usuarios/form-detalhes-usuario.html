@@ -1,0 +1,78 @@
+ 
+  <!-- Modal -->
+    <div class="modal fade" id="divModal" tabindex="-1" role="dialog" aria-labelledby="divModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-lg" role="document">
+            <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="divModalLabel">Detalhes do Usuário</h5>        
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true" id="close">&times;</span>
+                </button>
+                
+            </div>
+            <div class="modal-body">
+                    
+                    <div class="form-row">
+                        <div class="col-6">
+                            <label class="mr-sm-2">Pesquisar RF</label>
+                            <input type="text" class="form-control" id="rfUsuario" maxlength="7" oninput="this.value = this.value.replace(/[^0-9]/g, '')" placeholder="RF">
+                        </div>
+                        <div class="col-6 align-self-center" id="verificaUsuarioCad">
+                            
+                        </div>
+                    </div>
+
+                    <hr>
+                   
+                    <div id="detalhamento" style="display:none;">
+                        <div class="form-row" >
+                            <div class="col-md-6">
+                                <label for="nomeUsuarioCad">Nome do Servidor</label>
+                                <input type="text" class="form-control" id="nomeUsuarioCad" readonly>
+                            </div>
+                            <div class="col-md-6 ">
+                                <label for="cargoUsuarioCad">Cargo</label>
+                                <input type="text" class="form-control" id="cargoUsuarioCad" readonly>
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="col-md-7">
+                                <label for="emailUsuarioCad">E-mail</label>
+                                <input type="text" class="form-control" id="emailUsuarioCad" readonly>
+                            </div>
+                            <div class="col-md-5">
+                                <label for="cpfUsuarioCad">CPF</label>
+                                <input type="text" class="form-control" id="cpfUsuarioCad" readonly>
+                            </div>
+                        </div>
+
+                        <hr>
+                        
+                        <div class="form-row" >
+                            <div class="col-md-12" id="conteudo-detalhes-adicionais">
+                                
+                            </div>
+                        </div>
+
+                        
+                    </div>
+                    
+                    <div class="form-row" id="carregamento" style="display:none;">
+                        <div class="col-md-12">
+                            <center><img src="https://i.pinimg.com/originals/e7/56/60/e75660be6aba272e4b651911b6faee55.gif" width="70px"></center>
+                        </div>
+                    </div>
+
+                    <div class="form-row" id="naoEncontrado" style="display:none;">
+                        <div class="col-md-12">
+                            <h4>Servidor não encontrado!</h4>
+                        </div>
+                    </div>
+                                    
+            </div>
+            
+            </div>
+        </div>
+    </div>
+    
+    

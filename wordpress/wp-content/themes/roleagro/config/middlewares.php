@@ -68,6 +68,173 @@ function verifica_usuario_logado_tem_ue() {
     return true;
 }
 
+/**
+ * Verifica se o usuário pode se inscrever em uma visita quando o sorteio estiver ativo.
+ */
+
+function usuario_possui_unidade_em_sorteio(
+    array $sorteios_ids,
+    array $status_permitidos
+) {
+    global $wpdb;
+
+    if (!is_user_logged_in()) {
+        return false;
+    }
+
+    $usuario_id = get_current_user_id();
+
+    $unidade_lotacao = get_user_meta(
+        $usuario_id,
+        'unidade_locacao',
+        true
+    );
+
+    if (
+        !is_array($unidade_lotacao) ||
+        empty($unidade_lotacao['codUnidade'])
+    ) {
+        return false;
+    }
+
+    $cie = trim(
+        (string) $unidade_lotacao['codUnidade']
+    );
+
+    if ($cie === '') {
+        return false;
+    }
+
+    /*
+    * Normaliza o CIE para permitir comparação
+    * independentemente dos zeros à esquerda.
+    */
+    $cie_normalizado = ltrim(
+        $cie,
+        '0'
+    );
+
+    if ($cie_normalizado === '') {
+        $cie_normalizado = '0';
+    }
+
+    $sorteios_ids = array_values(
+        array_filter(
+            array_map(
+                'absint',
+                $sorteios_ids
+            )
+        )
+    );
+
+    $status_permitidos = array_values(
+        array_filter(
+            array_map(
+                'sanitize_key',
+                $status_permitidos
+            )
+        )
+    );
+
+    if (
+        empty($sorteios_ids) ||
+        empty($status_permitidos)
+    ) {
+        return false;
+    }
+
+    $table_unidades =
+        $wpdb->prefix . 'sorteio_unidades';
+
+    $placeholders_sorteios = implode(
+        ', ',
+        array_fill(
+            0,
+            count($sorteios_ids),
+            '%d'
+        )
+    );
+
+    $placeholders_status = implode(
+        ', ',
+        array_fill(
+            0,
+            count($status_permitidos),
+            '%s'
+        )
+    );
+
+    $sql = "
+        SELECT id
+        FROM {$table_unidades}
+        WHERE TRIM(LEADING '0' FROM cie) = %s
+        AND sorteio_id IN ({$placeholders_sorteios})
+        AND status IN ({$placeholders_status})
+        LIMIT 1
+    ";
+
+    $parametros = array_merge(
+        [$cie_normalizado],
+        $sorteios_ids,
+        $status_permitidos
+    );
+
+    $unidade_id = $wpdb->get_var(
+        $wpdb->prepare(
+            $sql,
+            ...$parametros
+        )
+    );
+
+    return $unidade_id !== null;
+}
+
+function usuario_pode_inscrever_por_sorteio()
+{
+    $restringir = get_field(
+        'restringir_inscricao_sorteio',
+        'option'
+    );
+
+    /*
+     * Se a restrição estiver desativada,
+     * não existe bloqueio por sorteio.
+     */
+    if (!$restringir) {
+        return true;
+    }
+
+    $sorteios_ids = get_field(
+        'sorteios_permitidos',
+        'option'
+    );
+
+    $status_permitidos = get_field(
+        'status_sorteio_permitidos',
+        'option'
+    );
+
+    $sorteios_ids = (array) $sorteios_ids;
+
+    $status_permitidos = (array) $status_permitidos;
+
+    /*
+     * Restrição habilitada, mas configuração
+     * incompleta: não libera.
+     */
+    if (
+        empty($sorteios_ids) ||
+        empty($status_permitidos)
+    ) {
+        return false;
+    }
+
+    return usuario_possui_unidade_em_sorteio(
+        $sorteios_ids,
+        $status_permitidos
+    );
+}
+
 function tem_perfil_administrador() {
     return current_user_can( 'acessar_painel_adm' );
 }
