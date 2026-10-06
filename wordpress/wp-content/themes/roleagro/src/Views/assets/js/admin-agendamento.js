@@ -1430,3 +1430,222 @@ function verificaAcompanhantesEdit(rf, idInput, opc){
     return verificacao;
 
 }
+
+// Auto preenchimento do nome do educador ao digitar o RF no repeater de participantes adicionais
+(function ($) {
+
+    /**
+     * Detecta alteração do RF em qualquer linha
+     * do repeater participantes_adicionais.
+     */
+    $(document).on(
+        'change',
+        '[data-name="participantes_adicionais"] [data-name="rf_cpf"] input',
+        function () {
+
+            const $campoRf = $(this);
+            const rf = $campoRf.val().trim();
+
+            if (!rf) {
+                return;
+            }
+
+            if (rf.length !== 7) {
+                return;
+            }
+
+            /**
+             * Linha atual do repeater.
+             */
+            const $row = $campoRf.closest('.acf-row');
+
+            /**
+             * Verifica duplicidade antes de consultar API.
+             */
+            if (rfJaAdicionado(rf, $campoRf)) {
+
+                $campoRf.val('');
+
+                Swal.fire({
+                    icon: 'info',
+                    position: 'center',
+                    html: '<b>Este educador já foi adicionado</b>',
+                    showConfirmButton: false,
+                    timer: 3000
+                });
+
+                return;
+            }
+
+            buscaEducadorPorRF(rf, $row);
+        }
+    );
+
+
+    /**
+     * Consulta o endpoint.
+     */
+    function buscaEducadorPorRF(rf, $row) {
+
+        Swal.fire({
+            position: 'center',
+            title: '<small>Localizando educador informado...</small>',
+            html: 'Aguarde um instante, estamos buscando os dados do educador informado.',
+            showConfirmButton: false,
+            imageUrl: 'https://i.pinimg.com/originals/e7/56/60/e75660be6aba272e4b651911b6faee55.gif',
+            imageWidth: 100
+        });
+
+        fetch('/wp-json/agendamento/acompanhante', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                rf: rf
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+
+            Swal.close();
+
+            if (
+                data.success &&
+                data.data &&
+                data.data.nome
+            ) {
+
+                preencherNome($row, data.data.nome);
+
+            } else {
+
+                participanteNaoEncontrado($row);
+            }
+
+        })
+        .catch(error => {
+
+            Swal.close();
+
+            console.error(
+                'Erro ao buscar educador:',
+                error
+            );
+
+            Swal.fire({
+                icon: 'error',
+                position: 'center',
+                html: 'Não foi possível consultar o educador.',
+                showConfirmButton: false,
+                timer: 3000
+            });
+        });
+    }
+
+
+    /**
+     * Preenche o nome na mesma linha do RF.
+     */
+    function preencherNome($row, nome) {
+
+        const $campoNome = $row.find(
+            '[data-name="nome_completo"] input'
+        );
+
+        $campoNome
+            .val(nome)
+            .prop('readonly', true)
+            .trigger('change');
+    }
+
+
+    /**
+     * Caso o RF não seja encontrado, limpa o nome
+     * e permite preenchimento manual.
+     */
+    function participanteNaoEncontrado($row) {
+
+        const $campoNome = $row.find(
+            '[data-name="nome_completo"] input'
+        );
+
+        $campoNome
+            .val('')
+            .prop('readonly', false)
+            .trigger('change');
+
+        Swal.fire({
+            icon: 'warning',
+            position: 'center',
+            html: '<b>Educador não encontrado.</b>',
+            showConfirmButton: false,
+            timer: 3000
+        });
+    }
+
+
+    /**
+     * Verifica se o RF já foi informado
+     * em outra linha do repeater.
+     */
+    function rfJaAdicionado(rf, $campoAtual) {
+
+        let encontrado = false;
+
+        $(
+            '[data-name="participantes_adicionais"] ' +
+            '[data-name="rf_cpf"] input'
+        ).each(function () {
+
+            /**
+             * Ignora o próprio campo.
+             */
+            if (this === $campoAtual[0]) {
+                return;
+            }
+
+            const outroRf = $(this).val().trim();
+
+            if (outroRf === rf) {
+                encontrado = true;
+                return false;
+            }
+        });
+
+        return encontrado;
+    }
+
+})(jQuery);
+
+// Aplica mascara no campo de celular
+(function ($) {
+
+    function aplicarMascaraCelular($context) {
+
+        $context
+            .find('[data-name="celular_contato"] input')
+            .mask('(00) 00000-0000');
+    }
+
+
+    /**
+     * Campos existentes ao carregar a página.
+     */
+    $(document).ready(function () {
+        aplicarMascaraCelular($(document));
+    });
+
+
+    /**
+     * Novas linhas adicionadas pelo ACF.
+     */
+    if (typeof acf !== 'undefined') {
+
+        acf.addAction('append', function ($el) {
+            aplicarMascaraCelular($el);
+        });
+
+    }
+
+})(jQuery);
