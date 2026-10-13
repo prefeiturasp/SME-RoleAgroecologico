@@ -234,6 +234,20 @@ section.conteudo {
     color: var(--cor-branca);
 }
 
+.btn-secondary{
+    padding: 0.4rem 1rem;
+    justify-content: center;
+    align-items: center;
+    background-color: var(--cor-laranja);
+    border-radius: 20px;
+    text-decoration: none;
+    font-size: 1rem;
+    font-weight: 500;
+    color: var(--cor-branca);
+    margin-left: 12px;
+    border: 1px solid var(--cor-laranja);
+}
+
 .botoes-filtro {
     display: flex;
     gap: 12px;
