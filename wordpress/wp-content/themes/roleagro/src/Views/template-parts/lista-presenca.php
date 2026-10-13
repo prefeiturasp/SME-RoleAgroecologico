@@ -117,6 +117,8 @@ foreach ($arrEdAc as $acompanhante) {
   $listaPresencaAcomp[] = $acompanhante;  
 }
 
+$statusInscricao = get_post_meta($inscricao_id, 'status_inscricao', true);
+
 ?>
 
 <section class="container justify-content-center mb-4 mt-4" id="detalhe-roteiro-topo">
@@ -167,6 +169,9 @@ $linkGeraLista = add_query_arg([
             <hr>
         </div>
         <div class="col-md-6 text-right">
+            <?php if($statusInscricao == 'realizado'): ?>
+                <a href="<?= get_home_url();?>/avaliar-vivencia/?vivencia=<?= $inscricao_id; ?>" class="btn btn-secondary shadow">Avaliar vivência <i class="fa fa-star" aria-hidden="true"></i></a>
+            <?php endif; ?>
             <a href="<?php echo esc_url( $linkGeraLista ); ?>" class="btn btn-outline-success shadow" id="btn-gerar-lista-presenca">Baixar planilha</a>
             <button class="btn btn-success shadow" id="btn-importar-planilha">Importar planilha</button>
         </div>

@@ -870,9 +870,26 @@ function ajax_busca_set_lista_presenca() {
         $post_id = sanitize_text_field($_POST['post_id']); // Pega o id do post enviado
         $obsRole = isset( $_POST['obsRole'] ) ? sanitize_text_field( $_POST['obsRole'], 'sanitize_text_field' ): null;
         update_post_meta($post_id, 'observacoes_do_role', $obsRole);
+        update_post_meta($post_id, 'status_inscricao', 'realizado');
+        $notificar_avaliacao = get_post_meta( $post_id, 'notificar_avaliacao', true );
+
+        if ( ! $notificar_avaliacao ) {
+            $email = new Envia_Emails( $post_id, 'confirmar_avaliacao_vivencia' );
+
+            if ( $email->resultado_envio ) {
+                update_post_meta( $post_id, 'notificar_avaliacao', true );
+            }
+        }
+
         wp_send_json_success([
-            'msg' => 'Informações salvas com sucesso!'
+            'msg' => 'Informações salvas com sucesso!',
+            'url_avaliacao' => add_query_arg(
+                'vivencia',
+                $post_id,
+                home_url( '/avaliar-vivencia/' )
+            )
         ]);
+        
         wp_die(); // Termina a execução
     }
 }

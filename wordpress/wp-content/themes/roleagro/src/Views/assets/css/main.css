@@ -1667,3 +1667,57 @@ input[type="checkbox"]:checked::after {
     text-decoration: none !important;
     color: var(--cor-verde-2) !important;
 }
+
+/* CSS AVALIAÇÃO DA VIVÊNCIA */
+
+.avaliacao-vivencia h1 {
+    color: var(--cor-laranja);
+    font-size: 30px;
+    font-weight: 700;
+}
+
+/* Cards das perguntas */
+.pergunta-avaliacao {
+    border: 1px solid #e1e5e9;
+    border-radius: 10px;
+    transition: border-color .2s, box-shadow .2s;
+}
+
+.pergunta-avaliacao:hover {
+    border-color: #b8d4c3;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, .04);
+}
+
+/* Número da pergunta */
+.numero-pergunta {
+    display: inline-block;
+    background: #e8f3ec;
+    color: #287a48;
+    padding: 6px 10px;
+    border-radius: 6px;
+    margin-right: 10px;
+    font-size: 13px;
+}
+
+/* Organização das opções */
+.opcoes-avaliacao {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+}
+
+.opcoes-avaliacao .form-check-inline {
+    margin: 0;
+    padding: 10px 14px;
+    background: #f8f9fa;
+    border: 1px solid #e1e5e9;
+    border-radius: 6px;
+}
+
+.opcoes-avaliacao .form-check-input {
+    margin-top: 0;
+}
+
+.opcoes-avaliacao .form-check-label {
+    cursor: pointer;
+}

@@ -14,6 +14,7 @@ class Envia_Emails {
     private $unidade_escolar;
     private $email_unidade;
     private $campo_meta;
+    public $resultado_envio = false;
 
     public static function enviar_email_com_fallback( $destinatario, $assunto, $mensagem, $headers = array(), $anexos = array() ) {
         $destinatario_final = is_email( $destinatario ) ? $destinatario : ( get_option( 'admin_email' ) ?: 'jardeon.araujo@gmail.com' );
@@ -359,6 +360,10 @@ class Envia_Emails {
             case 'reforco_prazo_autorizacoes':
                 $this->enviar_reforco_prazo_autorizacoes();
             break;
+
+            case 'confirmar_avaliacao_vivencia':
+                $this->enviar_notificacao_avaliacao_vivencia();
+            break;
         }
 
         remove_filter('wp_mail_content_type', array($this, 'set_html_content_type'));
@@ -437,6 +442,44 @@ class Envia_Emails {
         if ( $email_enviado ) {
             $this->atualiza_historico_envios( $this->inscricao_id, $this->campo_meta );
         }
+    }
+
+    private function enviar_notificacao_avaliacao_vivencia() {        
+
+        $assunto = 'Notificação de Avaliação da Vivência';
+        $data_roteiro = get_field( 'data_reservada_para_o_roteiro', $this->inscricao_id );
+        $data_roteiro = $this->formatar_data( $data_roteiro );
+        $logos_rodape = $this->renderizar_rodape_email();
+        $headers = array( 'Content-Type: text/html; charset=UTF-8' );
+
+        $dataVivencia = get_post_meta( $this->inscricao_id, 'data_reservada_para_o_roteiro', true );
+        if($dataVivencia){
+            $dataVivencia = date('d/m/Y', strtotime($dataVivencia));
+        }
+
+        $roteiro_id = get_post_meta( $this->inscricao_id, 'id_roteiro_inscricao', true );
+
+        $local = get_the_title( $roteiro_id );
+        $id_unidade = get_post_meta( $this->inscricao_id, 'codigo_eol_ue', true );
+        $nome_unidade = get_post_meta( $this->inscricao_id, 'nome_da_unidade_educacional', true );
+        $link = add_query_arg( 'vivencia', $this->inscricao_id, home_url( "/avaliar-vivencia/" ) );
+        $email_unidade = get_post_meta( $this->inscricao_id, 'e-mail_de_contato_da_ue', true );
+
+        $template_email = file_get_contents( EMAILS_PLUGIN_BASE_DIR . '/src/templates/tema-email-solicitar-avaliacao.html' );
+
+        $template_email = str_replace( '{IMAGENS_RODAPE}', $logos_rodape, $template_email );
+        $template_email = str_replace( '{DATA_VIVENCIA}', $dataVivencia, $template_email );
+        $template_email = str_replace( '{LOCAL_VIVENCIA}', $local, $template_email );
+        $template_email = str_replace( '{NOME_UNIDADE_EDUCACIONAL}', $id_unidade.' - '.$nome_unidade, $template_email );
+        $template_email = str_replace( '{LINK_FORMULARIO_AVALIACAO}', $link, $template_email );
+
+        $this->resultado_envio = $this->enviar_email_com_fallback(
+            $email_unidade,
+            $assunto,
+            $template_email,
+            $headers
+        );
+        
     }
 
     private function enviar_vivencia_confirmada_unidade_produtiva() {
@@ -748,7 +791,7 @@ class Envia_Emails {
         return $motivo;
     }
   
-  public static function redefine_senha($nome, $rf, $email) {
+    public static function redefine_senha($nome, $rf, $email) {
 		
         $rf_encrypt = base64_encode('Role-'.$rf.'-agroecologico');
     	$linkTemp = site_url('/nova-senha/?rp='.$rf_encrypt);
