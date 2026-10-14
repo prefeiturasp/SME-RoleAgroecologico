@@ -38,6 +38,7 @@ spec:
 
         - name: php-fpm
           image: {{ .Values.php.image }}
+          imagePullPolicy: Always
           ports:
             - containerPort: 9000
           envFrom:
@@ -50,7 +51,7 @@ spec:
               mountPath: /var/www/html
               subPath: wordpress_data
       imagePullSecrets:
-          - name: regsmepoc
+          - name: regsme
       volumes:
         - name: {{ .Values.pvcName }}
           persistentVolumeClaim:
