@@ -1,8 +1,8 @@
 <?php 
 /**
- * Plugin Name: Envio de Emails Personalizados - SME - v2
+ * Plugin Name: Envio de Emails Personalizados - SME - v2.1
  * Description: Envia e-mails e notificações personalizadas.
- * Version: 1.2
+ * Version: 2.1
  * Author: Jardeon J M Araujo
  */
 
