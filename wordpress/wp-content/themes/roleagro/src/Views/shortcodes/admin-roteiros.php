@@ -19,6 +19,8 @@ if (is_user_logged_in()){
     add_action('wp_ajax_filtrar_roteiros', 'processa_ajax_filtrar_roteiros');
     add_action('wp_ajax_roteiros_selecionado', 'processa_ajax_roteiros_selecionado');
 
+    add_shortcode('btn_receptor_kit_complementar', 'exibe_receptor_kit_complementar');
+
     add_action( 'save_post', 'salva_post_roteiros' );
     
 }
@@ -358,6 +360,11 @@ function salva_post_roteiros($post_id){
         delete_transient('ids_temp_selecao_roteiros_'.$post_id);
     }
 
+    if(isset($_POST['receptorkit'])){
+        $idReceptor = sanitize_text_field($_POST['receptorkit']);
+        update_post_meta( $post_id, 'id_receptor_kit_complementar', $idReceptor );
+    } 
+
 }
 
 function salvar_dados_adicionais_roteiro(int $roteiro_id, array $id_unidades ) {
@@ -380,5 +387,49 @@ function salvar_dados_adicionais_roteiro(int $roteiro_id, array $id_unidades ) {
     update_post_meta( $roteiro_id, 'roteiro_particularidades', $particularidades );
     update_post_meta( $roteiro_id, 'roteiro_atrativos', $atrativos );
 
+}
+
+function exibe_receptor_kit_complementar($post_id){
+
+    $status = get_post_status( $post_id ); 
+
+    $idPost = get_the_ID();
+    $tipoRoteiro = get_post_meta($idPost, 'tipo_de_roteiro', true);
+    $idReceptorKitComplementar = get_post_meta($idPost, 'id_receptor_kit_complementar', true);
+    
+    $idsUPP = get_post_meta($idPost, 'ids_up_roteiro', true);
+
+        if($status != 'auto-draft'){
+            if($tipoRoteiro == 'combo'): ?>
+            <hr>
+            <form>
+                <div class="form-group">
+            <?php 
+                $primeiroCheck = 0;
+                for($i=0;$i < count($idsUPP); $i++): 
+                    $idUPP = $idsUPP[$i];
+                    $tipoCadastro = get_post_meta($idUPP, 'tipo_cadastro', true);
+
+                    if(($tipoCadastro == 'unidade' && $primeiroCheck == 0) || (isset($idReceptorKitComplementar) && $idReceptorKitComplementar == $idUPP)): $primeiroCheck = 1; ?>
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="radio" name="receptorkit" id="receptorkit<?=$i?>" value="<?=$idUPP?>" required checked>
+                            <label class="form-check-label" for="inlineRadio1"><?= get_the_title($idUPP);?></label>
+                        </div>
+                    <?php else: ?>
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="radio" name="receptorkit" id="receptorkit<?=$i?>" required value="<?=$idUPP?>">
+                            <label class="form-check-label" for="inlineRadio1"><?= get_the_title($idUPP);?></label>
+                        </div>
+            <?php endif; 
+                endfor; ?>
+                </div>
+            </form>
+            <?php else: ?>
+                <div class="form-check form-check-inline">
+                    <input class="form-check-input" type="radio" name="receptorkit" id="receptorkit" value="<?=$idsUPP[0];?>" checked>
+                    <label class="form-check-label" for="inlineRadio1"><?= get_the_title($idsUPP[0]);?></label>
+                </div>
+        <?php endif;
+        }
 }
 

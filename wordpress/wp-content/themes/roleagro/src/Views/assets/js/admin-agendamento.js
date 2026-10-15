@@ -99,6 +99,28 @@ jQuery(document).ready(function($) {
 
     } 
 
+    jQuery('.selectable-card').click(function() {
+        // 1. Limpa o estado visual e desmarca todos os inputs (comportamento de Radio)
+        jQuery('.selectable-card').removeClass('selected-card');
+        jQuery('.status-badge').removeClass('badge-success').addClass('badge-secondary').text('Selecionar este fornecedor');
+        jQuery('.card-input').prop('checked', false);
+        
+        // 2. Marca visualmente o card clicado
+        jQuery(this).addClass('selected-card');
+        jQuery(this).find('.status-badge').removeClass('badge-secondary').addClass('badge-success').text('Fornecedor selecionado');
+        
+        // 3. Ativa o input de verdade que está escondido dentro deste card
+        jQuery(this).find('.card-input').prop('checked', true);
+    });
+
+    if ($('#card-input-0').is(':checked')) {
+        jQuery("#card-0").addClass('selected-card');
+        jQuery("#card-0").find('.status-badge').removeClass('badge-secondary').addClass('badge-success').text('Fornecedor selecionado');
+    } else {
+        jQuery("#card-1").addClass('selected-card');
+        jQuery("#card-1").find('.status-badge').removeClass('badge-secondary').addClass('badge-success').text('Fornecedor selecionado');
+    }
+
 });
 
 function retornaEducadoresEditLocalStorageEdit() {

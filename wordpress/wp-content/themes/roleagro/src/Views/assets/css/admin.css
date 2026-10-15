@@ -13,3 +13,28 @@
     background: #6cca47 !important;
     color: #ffffff !important;
 }
+
+div#card-0, div#card-1 {
+    max-height: 180px;
+}
+
+/* Efeito de hover para indicar que é clicável */
+.selectable-card {
+  transition: transform 0.2s, box-shadow 0.2s;
+  margin: auto;
+
+}
+.selectable-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+}
+
+/* Estilo do Card quando estiver Selecionado */
+.selectable-card.selected-card {
+  border: 2px solid #28a745 !important; /* Cor verde do Bootstrap (success) */
+  background-color: #f8fff9; /* Um fundo levemente esverdeado */
+}
+
+div#card-fornecedor-selecionado {
+    max-width: 100% !important;
+}

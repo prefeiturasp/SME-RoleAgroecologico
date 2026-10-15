@@ -1,5 +1,8 @@
 <?php
 
+
+use EnviaEmail\classes\Envia_Emails;
+
 if (is_user_logged_in()){
 
     if ( !session_id() ) {
@@ -13,14 +16,13 @@ if (is_user_logged_in()){
     add_shortcode('listagem_educadores_acompanhantes', 'listagemEducadoresAcompanhantes');
     add_shortcode('fornecedor_kit_complementar', 'fornecedorKitComplementar');
 
-    add_shortcode('exibe_btn_envia_email_fornecedor_kit_complementar', 'exibeBtnFornecedorKitComplementar');
-
     add_shortcode('listagem_autorizacoes_estudantes', 'listagemAutorizacaosEstudantes');
     add_shortcode('justificativa_cancelamento_ue', 'justificativaCancelamentoUE'); //add_shortcode('listagem_cancelamento_ue', 'listagemCancelamentoUE');
 	add_shortcode('btn_lista_participantes', 'exibir_botao_lista_participantes');
     add_shortcode('btn_lista_presenca', 'botao_gerar_lista_presenca');
     add_shortcode('planilha_da_lista_de_presenca', 'exibe_planilha_enviada_lista_presenca');
     add_shortcode('lista_de_presenca', 'exibe_lista_de_presenca');
+
     // FILTROS
     add_filter('manage_edit-post_inscricao_columns', 'add_novas_colunas_inscricao');
     add_action('manage_post_inscricao_posts_custom_column', 'conteudo_novas_colunas_iscricao', 10, 2);
@@ -30,9 +32,14 @@ if (is_user_logged_in()){
     // Aplica os filtros na query
     // add_action('pre_get_posts', 'aplicaQueryFiltros');
 
+    add_filter('acf/prepare_field/name=notificar_fornecedor_kit_complementar', 'bloqueia_campo_acf_fornecedor_complementar');
+    add_filter('acf/prepare_field/name=notificar_up_receptora_kit_complementar', 'bloqueia_campo_acf_fornecedor_complementar');
+
     add_filter('acf/load_field/name=observacoes_do_role', 'my_acf_load_field_readonly');
 
     add_action( 'save_post', 'salvar_kit_complementar', 10, 3 );
+    // A prioridade 20 garante que o ACF já salvou os dados no banco
+    add_action( 'acf/save_post', 'captura_acf_envia_email_fornecedor_complementar', 20 );
 
 }
 
@@ -51,35 +58,13 @@ function conteudoInscricoes() {
 
 }
 
-function exibeBtnFornecedorKitComplementar(){ ?>
-        <div class="acf-like-field">
-
-            <label class="acf-like-toggle">
-                <input 
-                    type="checkbox"
-                    name="notificar_unidade"
-                    value="1"
-                >
-
-                <span class="acf-like-slider">
-                    <div class="acf-switch">
-                        <span class="acf-switch-on" style="min-width: 23.9688px;">Sim</span>
-                        <span class="acf-switch-off" style="min-width: 23.9688px;">Não</span>
-                        <div class="acf-switch-slider">
-                        </div>
-                    </div>
-                </span>
-            </label>
-
-        </div>
-<?php }
-
 function fornecedorKitComplementar(){
 
     $idInscricao = get_the_ID();
     $idRoteiro = get_post_meta( $idInscricao, 'id_roteiro_inscricao', true );
     $idUps = get_post_meta( $idRoteiro, 'ids_up_roteiro', true );
 
+    $idFornecedorKitAgendamento = get_post_meta( $idInscricao, '_fornecedor_kit_agroecologico', true );
     $idFornecedor = get_post_meta( $idInscricao, '_fornecedor_kit_complementar', true );
 
     $fornecedorKit = [];
@@ -88,7 +73,7 @@ function fornecedorKitComplementar(){
         $tipo = get_post_meta($id, 'tipo_cadastro', true);
 
         if($tipo == 'unidade'){
-            $fornecedor = get_post_meta( $id, 'fornecedor_de_kit_up', true );
+            $fornecedor = get_post_meta( $id, 'habilitado_kit_agro', true );
             if($fornecedor){
                 $fornecedorKit[] = array('idUnidade'=>$id, 'nomeUnidade' => get_the_title( $id ));
             }
@@ -111,7 +96,11 @@ function fornecedorKitComplementar(){
     $unidadesProdutivas = new WP_Query( $args );
 
     // Array para guardar os resultados se precisar usar depois
-    $posts_encontrados = array();
+    $posts_encontrados = array(); ?>
+
+    <div class="row">
+
+    <?php 
 
     if ( $unidadesProdutivas->have_posts() ) {
         $i=0;
@@ -130,11 +119,9 @@ function fornecedorKitComplementar(){
                 );
             }
             
-        } $i++; 
-        
-        ?>
-        <div class="row">
-            <div class="col-4">
+        } $i++; ?>
+
+            <div class="col-6">
                 <form>                    
                     <select class="custom-select mr-sm-2" id="selectKitComplementar" name="selectKitComplementar">
                         <option value="">-- Selecione --</option>
@@ -150,36 +137,32 @@ function fornecedorKitComplementar(){
                     </select>
                 </form>
             </div>
-       </div>
-       <br>
+        
        <?php 
        // Sempre restaure os dados globais do post após o loop  
        wp_reset_postdata();
     } else { ?>
-        <div class="row">
-            <div class="col">
+        
+            <div class="col-12">
                 <div class="card bg-light mb-3" id="card-fornecedor-selecionado">
                     <div class="card-body">
                         <strong>NÃO HÁ UNIDADE PRODUTIVA QUE FORNEÇA KIT COMPLEMENTAR.</strong>
                     </div>
                 </div>
             </div>
-        </div>
-    <?php } ?>
+       
+    <?php } 
 
-    <div class="row">
-    
-    <?php
-    if($idFornecedor): 
-    
-    $nomeSetor = get_the_title( $idFornecedor ). ' - ' . buscaTaxonomia( $idFornecedor, 'tax_up_regioes' );
-    $endereco = get_post_meta($idFornecedor, 'logradouro', true) . ', '. get_post_meta($idFornecedor, 'numero', true) .', '. get_post_meta($idFornecedor, 'bairro', true).', '. get_post_meta($idFornecedor, 'cidade', true).', CEP '. get_post_meta($idFornecedor, 'cep', true);
-    $telefone = get_post_meta($idFornecedor, 'telefone_contato', true);
-    ?>
-            <div class="col-4">
+        if($idFornecedor): 
+        
+        $nomeSetor = get_the_title( $idFornecedor ). ' - ' . buscaTaxonomia( $idFornecedor, 'tax_up_regioes' );
+        $endereco = get_post_meta($idFornecedor, 'logradouro', true) . ', '. get_post_meta($idFornecedor, 'numero', true) .', '. get_post_meta($idFornecedor, 'bairro', true).', '. get_post_meta($idFornecedor, 'cidade', true).', CEP '. get_post_meta($idFornecedor, 'cep', true);
+        $telefone = get_post_meta($idFornecedor, 'telefone_contato', true);
+        ?>
+            <div class="col-12">
                 <div class="card bg-light mb-3" id="card-fornecedor-selecionado">
                     <div class="card-body">
-                        <strong>FORNECEDOR COMPLEMENTAR SELECIONADO</strong>
+                        <strong>FORNECEDOR COMPLEMENTAR</strong>
                         <hr> 
                         <p><strong>NOME:</strong> <?= $nomeSetor ?></p>
                         <p><strong>ENDEREÇO:</strong> <?= $endereco ?></p>
@@ -187,23 +170,37 @@ function fornecedorKitComplementar(){
                     </div>
                 </div>
             </div>
-    <?php endif; 
-    
-        if(isset($fornecedorKit) && !empty($fornecedorKit)): 
-            foreach($fornecedorKit as $item): ?>
-                <div class="col-4">
-                    <div class="card bg-light mb-3">
-                        <div class="card-header">ATENÇÃO</div>
-                        <div class="card-body">
-                            <h5 class="card-title">A unidade: <strong><?= $item['nomeUnidade']; ?></strong></h5>
-                            <p class="card-text">Fornece os kits para os participantes do rolê.</p>
+        
+        <?php else: ?>
+
+            <div class="col-12">&nbsp;</div>
+        
+        <?php endif;
+        
+            if(isset($fornecedorKit) && !empty($fornecedorKit)): ?>
+            
+            <?php $c=0; foreach($fornecedorKit as $item): ?>
+
+                <div class="col-6">
+                    <div class="card selectable-card h-100" style="cursor: pointer;" id="card-<?=$c?>">
+                        <div class="card-body text-center">
+                <?php if(intval($idFornecedorKitAgendamento) == intval($item['idUnidade'])) : ?>
+                        <input type="radio" name="fornecedorkitAgendamento" value="<?= $item['idUnidade'] ?>" class="card-input d-none" id="card-input-<?=$c?>" checked>
+                <?php  else: ?>
+                        <input type="radio" name="fornecedorkitAgendamento" value="<?= $item['idUnidade'] ?>" class="card-input d-none" id="card-input-<?=$c?>">
+                <?php endif; ?>   
+
+                        <h5 class="card-title"><?= $item['nomeUnidade']; ?></h5>
+                        <p class="card-text">Fornece os kits para os participantes do rolê.</p>
+                        <span class="badge badge-secondary status-badge">Selecionar este fornecedor</span>
                         </div>
                     </div>
-                </div>
-        <?php endforeach; 
-        endif; ?>
+                </div>                  
 
-        </div>
+            <?php $c++; endforeach; 
+            endif; ?>
+
+    </div>
     <?php
 }
 
@@ -225,12 +222,67 @@ function salvar_kit_complementar( $post_id, $post, $update ) {
         return;
     }
 
+    if(isset($_POST['fornecedorkitAgendamento'])){
+        $idFornecedorAge = sanitize_text_field($_POST['fornecedorkitAgendamento']);
+        update_post_meta( $post_id, '_fornecedor_kit_agroecologico', $idFornecedorAge );
+    } else {
+        delete_post_meta($post_id, '_fornecedor_kit_agroecologico');
+    }
+
     if(!empty($_POST['selectKitComplementar'])){
         $idFornecedor = sanitize_text_field($_POST['selectKitComplementar']);
         update_post_meta( $post_id, '_fornecedor_kit_complementar', $idFornecedor );
     } else {
         delete_post_meta( $post_id, '_fornecedor_kit_complementar' );
     }
+}
+
+function captura_acf_envia_email_fornecedor_complementar( $post_id ) {
+
+    // Impede que o código rode em revisões de posts
+    if ( wp_is_post_revision( $post_id ) ) {
+        return;
+    }
+    
+    // // FORNECEDOR DE KIT COMPLEMENTAR
+    $emailEnviadoF = get_post_meta( $post_id, '_email_enviado_fornecedor_kit_complementar', true );
+    $valor_do_campo_fornecedor = get_field( 'notificar_fornecedor_kit_complementar', $post_id );
+    if ( !empty( $valor_do_campo_fornecedor ) && $valor_do_campo_fornecedor == '1' ) {
+        // ENVIA O EMAIL PARA NOTIFICAR A UNIDADE PRODUTIVA FORNECEDORA DE KIT COMPLEMENTAR
+        if(!isset($emailEnviadoF) || $emailEnviadoF != '1'){
+            //Envia o e-mail de confirmação do recebimento do agendamento
+            new Envia_Emails( $post_id, 'notifica_fornecedor_kit_complementar' );
+            update_post_meta( $post_id, '_email_enviado_fornecedor_kit_complementar', '1' );
+        }
+    }  else {
+        update_post_meta( $post_id, '_email_enviado_fornecedor_kit_complementar', '0' );
+    }
+
+    // RECEPTOR DE KIT COMPLEMENTAR
+    $emailEnviadoR = get_post_meta( $post_id, '_email_enviado_receptor_kit_complementar', true );
+    $valor_do_campo_receptor = get_field( 'notificar_up_receptora_kit_complementar', $post_id );
+    if ( !empty( $valor_do_campo_receptor ) && $valor_do_campo_receptor == '1' ) {
+       if(!isset($emailEnviadoR) || $emailEnviadoR != '1'){
+            //Envia o e-mail de confirmação do recebimento do agendamento
+            new Envia_Emails( $post_id, 'notifica_recebimento_kit_complementar' );
+            update_post_meta( $post_id, '_email_enviado_receptor_kit_complementar', '1' );
+        } 
+    } else {
+        update_post_meta( $post_id, '_email_enviado_receptor_kit_complementar', '0' );
+    }        
+
+}
+
+function bloqueia_campo_acf_fornecedor_complementar($field) {
+
+    $post_id = intval($_GET['post']); 
+    
+    $idFornecedorKitComplementar =  get_post_meta($post_id, '_fornecedor_kit_complementar', true);
+    if (!$idFornecedorKitComplementar) {
+        return false; // Retornar false impede a renderização do campo
+    }
+    
+    return $field;
 }
 
 function listagemEstudantesInscritos() { 
