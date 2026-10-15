@@ -866,20 +866,65 @@ function ajax_busca_set_lista_presenca() {
         
         enviaDocListaPresenca($post_id,$arquivo);
 
-    } else if($_SERVER['REQUEST_METHOD'] == 'POST'){
-        $post_id = sanitize_text_field($_POST['post_id']); // Pega o id do post enviado
-        $obsRole = isset( $_POST['obsRole'] ) ? sanitize_text_field( $_POST['obsRole'], 'sanitize_text_field' ): null;
-        update_post_meta($post_id, 'observacoes_do_role', $obsRole);
-        update_post_meta($post_id, 'status_inscricao', 'realizado');
-        $notificar_avaliacao = get_post_meta( $post_id, 'notificar_avaliacao', true );
+    } else if ( $_SERVER['REQUEST_METHOD'] == 'POST' ) {
+
+        $post_id = absint( $_POST['post_id'] ?? 0 );
+
+        $obsRole = isset( $_POST['obsRole'] )
+            ? sanitize_text_field( wp_unslash( $_POST['obsRole'] ) )
+            : null;
+
+        update_post_meta(
+            $post_id,
+            'observacoes_do_role',
+            $obsRole
+        );
+
+        /*
+        * Finaliza a vivência.
+        */
+        update_post_meta(
+            $post_id,
+            'status_inscricao',
+            'realizado'
+        );
+
+        /*
+        * 1. NOTIFICAÇÃO DOS PROFESSORES 
+        */
+        $notificar_avaliacao = get_post_meta(
+            $post_id,
+            'notificar_avaliacao',
+            true
+        );
 
         if ( ! $notificar_avaliacao ) {
-            $email = new Envia_Emails( $post_id, 'confirmar_avaliacao_vivencia' );
+
+            $email = new Envia_Emails(
+                $post_id,
+                'confirmar_avaliacao_vivencia'
+            );
 
             if ( $email->resultado_envio ) {
-                update_post_meta( $post_id, 'notificar_avaliacao', true );
+
+                update_post_meta(
+                    $post_id,
+                    'notificar_avaliacao',
+                    true
+                );
             }
         }
+
+        /*
+        * 2. NOTIFICAÇÃO DAS UNIDADES PRODUTIVAS
+        *
+        * O método já verifica quais unidades
+        * receberam o e-mail e quais estão pendentes.
+        */
+        $email_unidades = new Envia_Emails(
+            $post_id,
+            'solicitar_avaliacao_unidades_produtivas'
+        );        
 
         wp_send_json_success([
             'msg' => 'Informações salvas com sucesso!',
@@ -889,8 +934,8 @@ function ajax_busca_set_lista_presenca() {
                 home_url( '/avaliar-vivencia/' )
             )
         ]);
-        
-        wp_die(); // Termina a execução
+
+        wp_die();
     }
 }
 

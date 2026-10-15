@@ -363,6 +363,11 @@ class Envia_Emails {
             case 'confirmar_avaliacao_vivencia':
                 $this->enviar_notificacao_avaliacao_vivencia();
             break;
+
+            case 'solicitar_avaliacao_unidades_produtivas':
+                $this->enviar_notificacao_avaliacao_unidades_produtivas();
+            break;
+
             case 'notifica_fornecedor_kit_complementar':
                 $this->enviar_notificacao_fornecedor_kit_complementar();
             break;
@@ -485,6 +490,221 @@ class Envia_Emails {
             $headers
         );
         
+    }
+
+    private function enviar_notificacao_avaliacao_unidades_produtivas() {
+
+        $assunto = 'Avaliação da Vivência - Unidade Produtiva/Parque';
+
+        $headers = [
+            'Content-Type: text/html; charset=UTF-8'
+        ];
+
+        /*
+        * Informações da vivência.
+        */
+        $data_vivencia = get_post_meta(
+            $this->inscricao_id,
+            'data_reservada_para_o_roteiro',
+            true
+        );
+
+        if ( $data_vivencia ) {
+            $data_vivencia = date( 'd/m/Y', strtotime( $data_vivencia ) );
+        }
+
+        $roteiro_id = get_post_meta(
+            $this->inscricao_id,
+            'id_roteiro_inscricao',
+            true
+        );
+
+        $local = get_the_title( $roteiro_id );
+
+        $id_unidade = get_post_meta(
+            $this->inscricao_id,
+            'codigo_eol_ue',
+            true
+        );
+
+        $nome_unidade = get_post_meta(
+            $this->inscricao_id,
+            'nome_da_unidade_educacional',
+            true
+        );
+
+        $unidade_educacional = $id_unidade . ' - ' . $nome_unidade;
+
+        $logos_rodape = $this->renderizar_rodape_email();
+
+        /*
+        * Recupera as Unidades Produtivas vinculadas
+        * ao roteiro da inscrição.
+        */
+        $unidades = get_unidades_produtivas_vivencia(
+            $this->inscricao_id
+        );
+
+        if ( empty( $unidades ) ) {
+            $this->resultado_envio = false;
+            return;
+        }
+
+        /*
+        * Recupera o template.
+        */
+        $arquivo_template = EMAILS_PLUGIN_BASE_DIR .
+            '/src/templates/tema-email-avaliacao-unidade-produtiva.html';
+
+        if ( ! is_readable( $arquivo_template ) ) {
+            $this->resultado_envio = false;
+            return;
+        }
+
+        $template_original = file_get_contents( $arquivo_template );
+
+        /*
+        * Recupera os envios realizados anteriormente.
+        */
+        $notificacoes = get_post_meta(
+            $this->inscricao_id,
+            'notificacoes_avaliacao_unidades',
+            true
+        );
+
+        if ( ! is_array( $notificacoes ) ) {
+            $notificacoes = [];
+        }
+
+        $resultados = [];
+
+        /*
+        * Envia uma notificação para cada Unidade Produtiva.
+        */
+        foreach ( $unidades as $unidade_id ) {
+
+            /*
+            * Evita reenviar notificações já realizadas.
+            */
+            if ( ! empty( $notificacoes[ $unidade_id ] ) ) {
+                continue;
+            }
+
+            /*
+            * Se a unidade já respondeu, não precisa
+            * receber uma nova solicitação.
+            */
+            if (
+                avaliacao_unidade_ja_realizada(
+                    $this->inscricao_id,
+                    $unidade_id
+                )
+            ) {
+                continue;
+            }
+
+            /*
+            * Informações da Unidade Produtiva.
+            */
+            $nome_up = get_the_title( $unidade_id );
+
+            $email_up = get_post_meta(
+                $unidade_id,
+                'email_contato',
+                true
+            );
+
+            if ( ! is_email( $email_up ) ) {
+                $resultados[ $unidade_id ] = false;
+                continue;
+            }
+
+            /*
+            * Gera o link individual com token.
+            */
+            $link = get_link_avaliacao_unidade(
+                $this->inscricao_id,
+                $unidade_id
+            );
+
+            if ( ! $link ) {
+                $resultados[ $unidade_id ] = false;
+                continue;
+            }
+
+            /*
+            * Monta o e-mail desta unidade.
+            */
+            $template_email = str_replace(
+                [
+                    '{IMAGENS_RODAPE}',
+                    '{DATA_VIVENCIA}',
+                    '{LOCAL_VIVENCIA}',
+                    '{NOME_UNIDADE_EDUCACIONAL}',
+                    '{NOME_UNIDADE_PRODUTIVA}',
+                    '{LINK_FORMULARIO_AVALIACAO}',
+                ],
+                [
+                    $logos_rodape,
+                    esc_html( $data_vivencia ),
+                    esc_html( $local ),
+                    esc_html( $unidade_educacional ),
+                    esc_html( $nome_up ),
+                    esc_url( $link ),
+                ],
+                $template_original
+            );
+
+            /*
+            * Envia o e-mail.
+            */
+            $enviado = $this->enviar_email_com_fallback(
+                $email_up,
+                $assunto,
+                $template_email,
+                $headers
+            );
+
+            $resultados[ $unidade_id ] = (bool) $enviado;
+
+            /*
+            * Registra individualmente os envios aceitos.
+            */
+            if ( $enviado ) {
+
+                $notificacoes[ $unidade_id ] = current_time( 'mysql' );
+
+                update_post_meta(
+                    $this->inscricao_id,
+                    'notificacoes_avaliacao_unidades',
+                    $notificacoes
+                );
+            }
+        }
+
+        /*
+        * Resultado geral da execução.
+        *
+        * Retorna true quando todas as unidades
+        * estão notificadas ou já responderam.
+        */
+        $pendentes = false;
+
+        foreach ( $unidades as $unidade_id ) {
+
+            if (
+                empty( $notificacoes[ $unidade_id ] ) &&
+                ! avaliacao_unidade_ja_realizada(
+                    $this->inscricao_id,
+                    $unidade_id
+                )
+            ) {
+                $pendentes = true;
+                break;
+            }
+        }
+
+        $this->resultado_envio = ! $pendentes;
     }
 
     private function enviar_vivencia_confirmada_unidade_produtiva() {
