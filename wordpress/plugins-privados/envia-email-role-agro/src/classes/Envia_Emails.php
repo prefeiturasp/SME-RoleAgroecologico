@@ -30,6 +30,19 @@ class Envia_Emails {
         return wp_mail( $destinatario_final, $assunto, $mensagem, $headers, $anexos );
     }
 
+    public function __construct($inscricao_id = null, $tipo_notificacao = null, $campo_meta = null) {
+
+        $this->inscricao_id = $inscricao_id;
+        $this->inscricao = get_post( $inscricao_id );
+        $this->tipo_notificacao = sanitize_text_field( $tipo_notificacao );
+        $this->unidade_escolar = get_field( 'nome_da_unidade_educacional', $inscricao_id );
+        $this->email_unidade = get_field( 'e-mail_de_contato_da_ue', $inscricao_id );
+        $this->campo_meta = $campo_meta;
+        
+        $this->envia_email_por_tipo();
+        
+    }
+
     public static function renderizar_template_vivencia_confirmada_unidade_produtiva( $inscricao_id ) {
         $post = get_post( $inscricao_id );
         if ( ! $post || $post->post_type !== 'post_inscricao' ) {
@@ -144,19 +157,6 @@ class Envia_Emails {
         }
 
         return $total;
-    }
-
-    public function __construct($inscricao_id = null, $tipo_notificacao = null, $campo_meta = null) {
-
-        $this->inscricao_id = $inscricao_id;
-        $this->inscricao = get_post( $inscricao_id );
-        $this->tipo_notificacao = sanitize_text_field( $tipo_notificacao );
-        $this->unidade_escolar = get_field( 'nome_da_unidade_educacional', $inscricao_id );
-        $this->email_unidade = get_field( 'e-mail_de_contato_da_ue', $inscricao_id );
-        $this->campo_meta = $campo_meta;
-        
-        $this->envia_email_por_tipo();
-        
     }
 
     public function set_html_content_type() {
@@ -344,7 +344,6 @@ class Envia_Emails {
             case 'cancelamento_unidade_produtiva': //Notificar cancelamento a Un. Prod./Parque
                 $this->enviar_cancelamento_unidade_produtiva();
             break;
-
             case 'cancelamento_vivencia_confirmada_unidade':
                 $this->enviar_cancelamento_vivencia_confirmada_unidade();
             break;
@@ -363,6 +362,12 @@ class Envia_Emails {
 
             case 'confirmar_avaliacao_vivencia':
                 $this->enviar_notificacao_avaliacao_vivencia();
+            break;
+            case 'notifica_fornecedor_kit_complementar':
+                $this->enviar_notificacao_fornecedor_kit_complementar();
+            break;
+            case 'notifica_recebimento_kit_complementar':
+                $this->enviar_notificacao_recebimento_kit_complementar();
             break;
         }
 
@@ -531,6 +536,105 @@ class Envia_Emails {
                 $this->atualiza_historico_envios( $this->inscricao_id, $this->campo_meta );
             }
         }
+    }
+
+    private function enviar_notificacao_fornecedor_kit_complementar() {
+
+        $assunto = 'Vivência confirmada - Fornecedor de Kit Complementar';
+        $data_roteiro = get_field( 'data_reservada_para_o_roteiro', $this->inscricao_id );
+        $data_roteiro = $this->formatar_data( $data_roteiro );
+        $logos_rodape = $this->renderizar_rodape_email();
+        $headers = array( 'Content-Type: text/html; charset=UTF-8' );
+
+        $idFornecedorKitAgendamento = get_post_meta( $this->inscricao_id, '_fornecedor_kit_complementar', true );
+        $nomeFornecedorKitComplementar = get_the_title( $idFornecedorKitAgendamento );
+        $emailContatoFornecedorKitComplementar = get_post_meta($idFornecedorKitAgendamento, 'email_contato', true);
+
+        $IdRoteiro = get_post_meta($this->inscricao_id, 'id_roteiro_inscricao', true);
+        $idsUnidadeProdParque = get_post_meta($IdRoteiro, 'ids_up_roteiro', true);
+        $idUnidadeProdParquePrincipal = $idsUnidadeProdParque[0];
+        $nomeUE = get_the_title( $idUnidadeProdParquePrincipal );
+
+        $logradouroUe = get_post_meta($idUnidadeProdParquePrincipal, 'logradouro', true);
+        $numeroUe = get_post_meta($idUnidadeProdParquePrincipal, 'numero', true);
+        $bairroUe = get_post_meta($idUnidadeProdParquePrincipal, 'bairro', true);
+        $cidadeUe = get_post_meta($idUnidadeProdParquePrincipal, 'cidade', true);
+        $complementoUe = get_post_meta($idUnidadeProdParquePrincipal, 'complemento', true);
+        $cepUe = get_post_meta($idUnidadeProdParquePrincipal, 'cep', true);
+
+        $enderecoUe = $logradouroUe.', nº: '.$numeroUe.', '.$bairroUe.', '.$cidadeUe.', cep: '.$cepUe;
+        $enderecoUe = $complementoUe ? $enderecoUe.' - '.$complementoUe : $enderecoUe;   
+
+        $telefoneUE = get_post_meta( $this->inscricao_id, 'telefone_de_contato_da_ue', true );
+        $link_confirmacao = site_url( '/formulario-confirmacao-kit/' );
+        $total_participantes = $this->obter_total_participantes( $this->inscricao_id );
+        $template_email = file_get_contents( EMAILS_PLUGIN_BASE_DIR . '/src/templates/tema-email-confirmacao-fornecedor-kit-complementar.html' );
+        $template_email = str_replace( '{IMAGENS_RODAPE}', $logos_rodape, $template_email );
+        $template_email = str_replace( '{DATA_ROTEIRO}', $data_roteiro, $template_email );
+        $template_email = str_replace( '{DATA_LIMITE}', $this->retornaDataLimite($data_roteiro), $template_email );
+        $template_email = str_replace( '{QTD_KITS}', (string) $total_participantes, $template_email );
+        $template_email = str_replace( '{TELEFONE_UE}', $telefoneUE, $template_email );
+        $template_email = str_replace( '{ENDERECO_UE}', $enderecoUe, $template_email );
+        $template_email = str_replace( '{LINK_FORMULARIO_CONFIRMACAO}', esc_url( $link_confirmacao ), $template_email );
+        $template_email = str_replace( '{NOME_PROPRIEDADE}', mb_strtoupper( $nomeUE ), $template_email );
+        $template_email = str_replace( '{NOME_UNIDADE_PRODUTIVA}', mb_strtoupper( $nomeFornecedorKitComplementar ), $template_email );
+
+        $template_email = str_replace( '{HORARIO_ENTREGA}', 'Até às 08:30h', $template_email );
+
+        $email_enviado = $this->enviar_email_com_fallback( $emailContatoFornecedorKitComplementar, $assunto, $template_email, $headers );
+
+        if ( $email_enviado ) {
+            $this->atualiza_historico_envios( $this->inscricao_id, $this->campo_meta );
+        }
+
+    }
+
+    private function enviar_notificacao_recebimento_kit_complementar() {
+        $assunto = 'Vivência confirmada - Informações para o recebimento dos kits complementares';
+        $data_vivencia_roteiro = get_field( 'data_reservada_para_o_roteiro', $this->inscricao_id );
+        $data_vivencia_roteiro = $this->formatar_data( $data_vivencia_roteiro );
+        $logos_rodape = $this->renderizar_rodape_email();
+        $headers = array( 'Content-Type: text/html; charset=UTF-8' );
+
+        $idFornecedorKitAgendamento = get_post_meta( $this->inscricao_id, '_fornecedor_kit_complementar', true );
+        $nomeFornecedorKitComplementar = get_the_title( $idFornecedorKitAgendamento );
+        $telefoneContatoFornecedorKitComplementar = get_post_meta($idFornecedorKitAgendamento, 'telefone_contato', true);
+        $proprietarioFornecedorKitComplementar = get_post_meta($idFornecedorKitAgendamento, 'dados_unidade_nome_proprietario', true);
+        
+        $idRoteiro = get_post_meta( $this->inscricao_id, 'id_roteiro_inscricao', true );
+        $idReceptorKitComplementar = get_post_meta($idRoteiro, 'id_receptor_kit_complementar', true);
+        $nomeReceptorKitComplementar = get_the_title( $idReceptorKitComplementar );
+        $emailReceptorKitComplementar = get_post_meta($idReceptorKitComplementar, 'dados_parque_email_contato', true);
+        
+        $telefone_osc = get_field( 'telefone_de_contato_da_osc', 'options' ) ?: 'a confirmar';
+        $total_participantes = $this->obter_total_participantes( $this->inscricao_id );
+        $nome_emef = $this->unidade_escolar ?: 'Escola';
+        $nome_propriedade_role = get_the_title( $idRoteiro ) ?: 'Unidade Produtiva';
+
+        $template_email = file_get_contents( EMAILS_PLUGIN_BASE_DIR . '/src/templates/tema-email-confirmacao-recebimento-kit-complementar.html' );
+        $template_email = str_replace( '{IMAGENS_RODAPE}', $logos_rodape, $template_email );
+        $template_email = str_replace( '{NOME_UE}', mb_strtoupper( $nomeReceptorKitComplementar ), $template_email );        
+        $template_email = str_replace( '{NOME_EMEF}', mb_strtoupper( $nome_emef ), $template_email );
+        $template_email = str_replace( '{DATA_VIVENCIA_ROTEIRO}', $data_vivencia_roteiro, $template_email );
+        $template_email = str_replace( '{TOTAL_PARTICIPANTES}', (string) $total_participantes, $template_email );
+        $template_email = str_replace( '{TELEFONE_OSC}', $telefone_osc, $template_email );
+        $template_email = str_replace( '{TELEFONE_FORNECEDOR_KIT}', $telefoneContatoFornecedorKitComplementar, $template_email );
+        $template_email = str_replace( '{NOME_PROPRIEDADE}', mb_strtoupper( $nome_propriedade_role ), $template_email );
+        $template_email = str_replace( '{NOME_FORNECEDOR_KIT_COMPLEMENTAR}', mb_strtoupper( $nomeFornecedorKitComplementar ), $template_email);
+        $template_email = str_replace( '{NOME_RESPONSAVEL_FORNECEDOR_KIT_COMPLEMENTAR}', mb_strtoupper( $proprietarioFornecedorKitComplementar ), $template_email);
+
+        $email_enviado = $this->enviar_email_com_fallback( $emailReceptorKitComplementar, $assunto, $template_email, $headers );
+
+        if ( $email_enviado ) {
+            $this->atualiza_historico_envios( $this->inscricao_id, $this->campo_meta );
+        }
+    }
+
+    public function retornaDataLimite($data){
+        
+        $digitosData = explode('/', $data);
+        $dataLimite = $digitosData[2].'-'.$digitosData[1].'-'.$digitosData[0];
+        return date('d/m/y', strtotime($dataLimite . ' -3 days'));
     }
 
     private function enviar_email_unidade_selecionada_roteiro( $persistir_historico = true ) {
