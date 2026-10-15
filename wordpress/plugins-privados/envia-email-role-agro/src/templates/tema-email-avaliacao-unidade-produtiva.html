@@ -1,0 +1,95 @@
+
+<html>
+    <head>
+        <style>
+            body { font-family: Arial, sans-serif; color: #333; }
+            .container { max-width: 700px; margin: 0 auto; padding: 30px; background-color: #f9f9f9; border: 1px solid #ddd; box-sizing: border-box; }
+            .dado { margin: 10px 0 20px 0; }
+            .espaco { padding-top: 18px; }
+            .lista { line-height: 1.7rem; }
+            .destaque { font-weight: 600; color: #87AE27; font-size: 1rem; margin-top: 30px; word-break: break-word; word-wrap: break-word; }
+            .rodape { margin-top: 5rem; }
+            .rodape .destaque { color: #005C2C; }
+            .rodape #logomarcas { display: flex; justify-content: start; align-items: center; }
+            .rodape #logomarcas img { margin-right: 5px; padding: 1.2rem 0; max-width: 15%; }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+
+            <p class="espaco">Prezada Equipe,</p>
+
+            <p class="espaco">
+                Agradecemos à Unidade <strong>{NOME_UNIDADE_PRODUTIVA}</strong>
+                pela parceria e pelo acolhimento dos estudantes e educadores
+                durante a vivência pedagógica realizada por meio do
+                Programa Rolê Agroecológico.
+            </p>
+
+            <p class="espaco">
+                Para contribuir com o aprimoramento das atividades e
+                proporcionar experiências cada vez mais significativas,
+                convidamos os responsáveis pela Unidade a
+                realizarem a Avaliação da Vivência Pedagógica.
+            </p>
+
+            <p class="espaco lista">
+                <strong>Data da Vivência:</strong> {DATA_VIVENCIA}<br>
+                <strong>Local:</strong> {LOCAL_VIVENCIA}<br>
+                <strong>Unidade Educacional:</strong> {NOME_UNIDADE_EDUCACIONAL}<br>
+                <strong>Unidade:</strong> {NOME_UNIDADE_PRODUTIVA}<br>
+            </p>
+
+            <p class="espaco">
+                Solicitamos, por gentileza, que a equipe responsável
+                pelo acompanhamento da atividade registre sua avaliação
+                sobre a organização da vivência, a participação dos
+                estudantes, a interação com o grupo e a experiência
+                de receber a unidade educacional.
+            </p>
+
+            <p class="destaque">
+                Link para avaliação:
+                <a href="{LINK_FORMULARIO_AVALIACAO}"></a>
+                    {LINK_FORMULARIO_AVALIACAO}
+                </a>
+            </p>
+
+            <p class="espaco">
+                Para acessar o formulário, basta clicar no link acima.
+                O acesso é individual para esta Unidade e
+                não é necessário informar RF, CPF ou realizar login.
+            </p>
+
+            <p class="espaco">
+                Sua participação é muito importante, pois as respostas
+                nos ajudam a identificar pontos positivos e oportunidades
+                de melhoria, fortalecendo a parceria entre as Unidades
+                Produtivas e o Programa Rolê Agroecológico.
+            </p>
+
+            <p class="espaco">
+                Caso a Unidade já tenha realizado a avaliação
+                desta vivência, não será necessário responder novamente.
+            </p>
+
+            <br>
+
+            <p class="espaco">
+                Agradecemos pela colaboração, acolhimento e parceria!
+            </p>
+
+            <div class="rodape">
+                <p class="destaque">
+                    Atenciosamente<br>
+                    Equipe Rolê Agroecológico
+                </p>
+
+                <div id="logomarcas">
+                    {IMAGENS_RODAPE}
+                </div>
+            </div>
+
+        </div>
+    </body>
+</html>

@@ -92,6 +92,37 @@ function get_perguntas_avaliacao_vivencia( $tipo = 'professor' ) {
             ];
 
             break;
+
+        case 'unidade':
+
+            $perguntas = [
+                'organizacao' => [
+                    'pergunta' => 'Como você avalia a organização prévia da vivência, incluindo a comunicação e as orientações recebidas?',
+                    'tipo'     => 'nota',
+                ],
+
+                'pontualidade' => [
+                    'pergunta' => 'Como você avalia o cumprimento dos horários e dos combinados estabelecidos para a visita?',
+                    'tipo'     => 'nota',
+                ],
+
+                'participacao' => [
+                    'pergunta' => 'Como você avalia o interesse e a participação dos estudantes durante as atividades?',
+                    'tipo'     => 'nota',
+                ],
+
+                'interacao' => [
+                    'pergunta' => 'Como você avalia a interação e o respeito do grupo com os responsáveis, o espaço e as atividades da Unidade Produtiva?',
+                    'tipo'     => 'nota',
+                ],
+
+                'avaliacao_geral' => [
+                    'pergunta' => 'De modo geral, como você avalia a experiência de receber a unidade educacional para esta vivência?',
+                    'tipo'     => 'nota',
+                ],
+            ];
+
+            break;
     }
 
     return $perguntas;
@@ -273,6 +304,9 @@ function salvar_avaliacao_vivencia( $dados ) {
 
 function processar_formulario_avaliacao_vivencia() {
 
+    /*
+     * Verifica se é o envio do formulário.
+     */
     if (
         $_SERVER['REQUEST_METHOD'] !== 'POST' ||
         empty( $_POST['acao'] ) ||
@@ -287,9 +321,7 @@ function processar_formulario_avaliacao_vivencia() {
     if (
         empty( $_POST['_wpnonce'] ) ||
         ! wp_verify_nonce(
-            sanitize_text_field(
-                wp_unslash( $_POST['_wpnonce'] )
-            ),
+            sanitize_text_field( wp_unslash( $_POST['_wpnonce'] ) ),
             'avaliar_vivencia'
         )
     ) {
@@ -299,40 +331,72 @@ function processar_formulario_avaliacao_vivencia() {
         );
     }
 
-
     /*
-     * Vivência.
+     * Identifica a vivência.
      */
     $vivencia_id = isset( $_POST['vivencia_id'] )
         ? absint( $_POST['vivencia_id'] )
         : 0;
 
-    if ( ! $vivencia_id ) {
+    if ( ! $vivencia_id || ! get_post( $vivencia_id ) ) {
         return new WP_Error(
             'vivencia_invalida',
             'Vivência inválida.'
         );
     }
 
+    /*
+     * Identifica o tipo de avaliação.
+     * Mantém professor como padrão para compatibilidade
+     * com o formulário existente.
+     */
+    $tipo = isset( $_POST['tipo'] )
+        ? sanitize_key( wp_unslash( $_POST['tipo'] ) )
+        : 'professor';
+
+    if ( ! in_array( $tipo, [ 'professor', 'unidade' ], true ) ) {
+        return new WP_Error(
+            'tipo_invalido',
+            'Tipo de avaliação inválido.'
+        );
+    }
 
     /*
-     * Perguntas válidas para professores.
+     * A vivência precisa estar realizada.
      */
-    $perguntas = get_perguntas_avaliacao_vivencia(
-        'professor'
-    );
-
+    if (
+        get_post_meta( $vivencia_id, 'status_inscricao', true )
+        !== 'realizado'
+    ) {
+        return new WP_Error(
+            'vivencia_indisponivel',
+            'Esta vivência ainda não está disponível para avaliação.'
+        );
+    }
 
     /*
-     * Respostas enviadas.
+     * Recupera as perguntas conforme o tipo.
      */
-    $respostas_enviadas = isset( $_POST['respostas'] )
-        && is_array( $_POST['respostas'] )
-            ? wp_unslash( $_POST['respostas'] )
-            : [];
+    $perguntas = get_perguntas_avaliacao_vivencia( $tipo );
+
+    if ( empty( $perguntas ) || ! is_array( $perguntas ) ) {
+        return new WP_Error(
+            'perguntas_invalidas',
+            'Não existem perguntas disponíveis para esta avaliação.'
+        );
+    }
+
+    /*
+     * Recupera as respostas enviadas.
+     */
+    $respostas_enviadas = (
+        isset( $_POST['respostas'] ) &&
+        is_array( $_POST['respostas'] )
+    )
+        ? wp_unslash( $_POST['respostas'] )
+        : [];
 
     $respostas = [];
-
 
     /*
      * Valida todas as perguntas.
@@ -342,34 +406,23 @@ function processar_formulario_avaliacao_vivencia() {
         /*
          * A pergunta não foi respondida.
          */
-        if (
-            ! array_key_exists(
-                $chave,
-                $respostas_enviadas
-            )
-        ) {
+        if ( ! array_key_exists( $chave, $respostas_enviadas ) ) {
             return new WP_Error(
                 'resposta_obrigatoria',
                 'Responda todas as perguntas da avaliação.'
             );
         }
 
-
         /*
          * Valida a nota.
+         * A escala permitida é de 0 a 5.
+         * A nota 0 é válida.
          */
         $nota = filter_var(
             $respostas_enviadas[ $chave ],
             FILTER_VALIDATE_INT
         );
 
-
-        /*
-         * A escala permitida é de 0 a 5.
-         *
-         * Importante:
-         * 0 é uma nota válida.
-         */
         if (
             $nota === false ||
             $nota < 0 ||
@@ -384,36 +437,107 @@ function processar_formulario_avaliacao_vivencia() {
         $respostas[ $chave ] = $nota;
     }
 
-
     /*
-    * Identifica o participante pelo RF ou CPF informado.
-    */
-    $documento = isset( $_POST['documento'] )
-        ? sanitize_text_field( wp_unslash( $_POST['documento'] ) )
-        : '';
-
-    $participante = identificar_participante_avaliacao( $vivencia_id, $documento );
-
-    if ( is_wp_error( $participante ) ) {
-        return $participante;
-    }
-
-    /*
-     * Verifica se esse professor já realizou
-     * uma avaliação para esta vivência.
+     * Identifica quem está realizando a avaliação.
      */
-    if (
-        professor_ja_avaliou_vivencia(
-            $vivencia_id,
-            $participante['rf']
-        )
-    ) {
-        return new WP_Error(
-            'avaliacao_duplicada',
-            'Este educador já realizou a avaliação desta vivência.'
-        );
-    }
+    if ( $tipo === 'professor' ) {
 
+        /*
+         * Identificação do professor por RF ou CPF.
+         */
+        $documento = isset( $_POST['documento'] )
+            ? sanitize_text_field( wp_unslash( $_POST['documento'] ) )
+            : '';
+
+        $participante = identificar_participante_avaliacao(
+            $vivencia_id,
+            $documento
+        );
+
+        if ( is_wp_error( $participante ) ) {
+            return $participante;
+        }
+
+        /*
+         * Verifica se o professor já respondeu.
+         */
+        if (
+            professor_ja_avaliou_vivencia(
+                $vivencia_id,
+                $participante['rf']
+            )
+        ) {
+            return new WP_Error(
+                'avaliacao_duplicada',
+                'Este educador já realizou a avaliação desta vivência.'
+            );
+        }
+
+        $identificador = $participante['rf'];
+        $nome          = $participante['nome'];
+
+    } else {
+
+        /*
+         * Identificação da Unidade Produtiva.
+         */
+        $unidade_id = isset( $_POST['unidade_id'] )
+            ? absint( $_POST['unidade_id'] )
+            : 0;
+
+        if (
+            ! $unidade_id ||
+            ! unidade_pertence_vivencia( $vivencia_id, $unidade_id )
+        ) {
+            return new WP_Error(
+                'unidade_invalida',
+                'Esta Unidade Produtiva não pertence à vivência informada.'
+            );
+        }
+
+        /*
+         * Validação do convite individual.
+         */
+        $token = isset( $_POST['token_avaliacao'] )
+            ? sanitize_text_field(
+                wp_unslash( $_POST['token_avaliacao'] )
+            )
+            : '';
+
+        if (
+            ! validar_convite_avaliacao_unidade(
+                $vivencia_id,
+                $unidade_id,
+                $token
+            )
+        ) {
+            return new WP_Error(
+                'convite_invalido',
+                'O link de avaliação é inválido ou não está autorizado.'
+            );
+        }
+
+        /*
+         * Identificação da unidade.
+         */
+        $identificador = (string) $unidade_id;
+        $nome          = get_the_title( $unidade_id );
+
+        /*
+         * Verifica se a unidade já respondeu.
+         */
+        if (
+            avaliacao_unidade_ja_realizada(
+                $vivencia_id,
+                $unidade_id
+            )
+        ) {
+            return new WP_Error(
+                'avaliacao_duplicada',
+                'Esta Unidade Produtiva já realizou a avaliação desta vivência.'
+            );
+        }
+    }
 
     /*
      * Comentário opcional.
@@ -424,15 +548,14 @@ function processar_formulario_avaliacao_vivencia() {
         )
         : '';
 
-
     /*
      * Salva a avaliação.
      */
     return salvar_avaliacao_vivencia([
         'vivencia_id'   => $vivencia_id,
-        'tipo'          => 'professor',
-        'identificador' => $participante['rf'],
-        'nome'          => $participante['nome'],
+        'tipo'          => $tipo,
+        'identificador' => $identificador,
+        'nome'          => $nome,
         'respostas'     => $respostas,
         'comentario'    => $comentario,
     ]);
@@ -612,17 +735,15 @@ function render_metabox_avaliacoes_vivencia( $post ) {
         </div>
 
 
-        <!-- UNIDADE -->
+        <!-- UNIDADES PRODUTIVAS -->
         <div
             id="avaliacoes-unidade"
             class="avaliacao-tab-content"
             style="display: none;"
         >
-
-            <p>
-                A avaliação da unidade será exibida aqui.
-            </p>
-
+            <?php
+                render_avaliacoes_unidades_vivencia( $post->ID );
+            ?>
         </div>
 
     </div>
@@ -686,255 +807,253 @@ function render_metabox_avaliacoes_vivencia( $post ) {
 
 function render_avaliacoes_professores_vivencia( $vivencia_id ) {
 
+    /*
+     * Recupera as avaliações dos professores.
+     */
     $avaliacoes = get_avaliacoes_vivencia(
         $vivencia_id,
         'professor'
     );
 
+    /*
+     * Recupera as perguntas.
+     */
     $perguntas = get_perguntas_avaliacao_vivencia(
         'professor'
     );
 
     if ( empty( $avaliacoes ) ) {
-        ?>
-
-        <p>
-            Nenhuma avaliação de professor foi realizada até o momento.
-        </p>
-
-        <?php
+        echo '<p>Nenhuma avaliação de professor foi realizada até o momento.</p>';
         return;
     }
 
     ?>
 
-    <p>
-        <strong>
-            <?php echo count( $avaliacoes ); ?>
-        </strong>
+    <div class="avaliacoes-professores-vivencia">
 
-        <?php
-        echo count( $avaliacoes ) === 1
-            ? 'avaliação recebida.'
-            : 'avaliações recebidas.';
-        ?>
-    </p>
+        <p>
+            <strong>
+                <?php echo esc_html( count( $avaliacoes ) ); ?>
+            </strong>
 
+            <?php
+            echo count( $avaliacoes ) === 1
+                ? 'avaliação recebida.'
+                : 'avaliações recebidas.';
+            ?>
+        </p>
 
-    <table class="widefat striped">
+        <?php foreach ( $avaliacoes as $avaliacao ) : ?>
 
-        <thead>
+            <?php
 
-            <tr>
+            /*
+             * Recupera as respostas armazenadas em JSON.
+             */
+            $respostas = json_decode(
+                $avaliacao['respostas'],
+                true
+            );
 
-                <th>
-                    Professor
-                </th>
+            if ( ! is_array( $respostas ) ) {
+                $respostas = [];
+            }
 
-                <?php foreach ( $perguntas as $pergunta ) : ?>
+            /*
+             * Calcula a média das notas.
+             */
+            $notas = [];
 
-                    <th>
-                        <?php
-                        echo esc_html(
-                            $pergunta['pergunta']
-                        );
-                        ?>
-                    </th>
+            foreach ( $perguntas as $chave => $configuracao ) {
 
-                <?php endforeach; ?>
-
-                <th>
-                    Média
-                </th>
-
-                <th>
-                    Data
-                </th>
-
-            </tr>
-
-        </thead>
-
-
-        <tbody>
-
-            <?php foreach ( $avaliacoes as $avaliacao ) : ?>
-
-                <?php
-
-                $respostas = json_decode(
-                    $avaliacao['respostas'],
-                    true
-                );
-
-                if ( ! is_array( $respostas ) ) {
-                    $respostas = [];
+                if (
+                    array_key_exists( $chave, $respostas ) &&
+                    is_numeric( $respostas[ $chave ] )
+                ) {
+                    $notas[] = (float) $respostas[ $chave ];
                 }
+            }
 
+            $media = count( $notas ) > 0
+                ? array_sum( $notas ) / count( $notas )
+                : null;
 
-                /*
-                 * Calcula média da avaliação.
-                 */
-                $notas = [];
+            ?>
 
-                foreach ( $respostas as $nota ) {
+            <div
+                style="
+                    border: 1px solid #dcdcde;
+                    background: #fff;
+                    padding: 16px;
+                    margin-bottom: 16px;
+                    border-radius: 4px;
+                "
+            >
 
-                    if ( is_numeric( $nota ) ) {
-                        $notas[] = (int) $nota;
-                    }
-                }
+                <!-- CABEÇALHO -->
 
-                $media = ! empty( $notas )
-                    ? array_sum( $notas ) / count( $notas )
-                    : null;
+                <div
+                    style="
+                        display: flex;
+                        align-items: center;
+                        justify-content: space-between;
+                        gap: 12px;
+                        margin-bottom: 12px;
+                    "
+                >
 
-                ?>
+                    <div>
 
-
-                <tr>
-
-                    <!-- PROFESSOR -->
-
-                    <td>
-
-                        <strong>
+                        <h5 style="margin: 0 0 5px;">
                             <?php
                             echo esc_html(
                                 $avaliacao['nome']
                             );
                             ?>
-                        </strong>
-
+                        </h5>
 
                         <?php if ( ! empty( $avaliacao['identificador'] ) ) : ?>
 
-                            <br>
-
-                            <small>
-
-                                RF:
-
+                            <small style="color: #646970;">
+                                RF/CPF:
                                 <?php
                                 echo esc_html(
                                     $avaliacao['identificador']
                                 );
                                 ?>
-
                             </small>
 
                         <?php endif; ?>
 
-                    </td>
+                    </div>
 
+                    <span
+                        style="
+                            color: #008a20;
+                            font-weight: 600;
+                        "
+                    >
+                        ✓ Avaliada
+                    </span>
 
-                    <!-- RESPOSTAS -->
+                </div>
 
-                    <?php foreach ( $perguntas as $chave => $pergunta ) : ?>
+                <!-- DATA DA AVALIAÇÃO -->
 
-                        <td>
+                <?php if ( ! empty( $avaliacao['data_avaliacao'] ) ) : ?>
 
+                    <p>
+                        <strong>Data da avaliação:</strong>
+
+                        <?php
+                        echo esc_html(
+                            mysql2date(
+                                'd/m/Y H:i',
+                                $avaliacao['data_avaliacao']
+                            )
+                        );
+                        ?>
+                    </p>
+
+                <?php endif; ?>
+
+                <!-- PERGUNTAS E NOTAS -->
+
+                <table class="widefat striped">
+
+                    <thead>
+                        <tr>
+                            <th>Pergunta</th>
+                            <th style="width: 90px; text-align: center;">
+                                Nota
+                            </th>
+                        </tr>
+                    </thead>
+
+                    <tbody>
+
+                        <?php foreach ( $perguntas as $chave => $configuracao ) : ?>
+
+                            <tr>
+
+                                <td>
+                                    <?php
+                                    echo esc_html(
+                                        $configuracao['pergunta']
+                                    );
+                                    ?>
+                                </td>
+
+                                <td style="text-align: center;">
+
+                                    <?php if ( array_key_exists( $chave, $respostas ) ) : ?>
+
+                                        <strong>
+                                            <?php
+                                            echo esc_html(
+                                                $respostas[ $chave ]
+                                            );
+                                            ?>/5
+                                        </strong>
+
+                                    <?php else : ?>
+
+                                        —
+
+                                    <?php endif; ?>
+
+                                </td>
+
+                            </tr>
+
+                        <?php endforeach; ?>
+
+                    </tbody>
+
+                </table>
+
+                <!-- MÉDIA DA AVALIAÇÃO -->
+
+                <?php if ( $media !== null ) : ?>
+
+                    <div
+                        style="
+                            margin-top: 12px;
+                            padding: 12px;
+                            background: #f0f6fc;
+                            border-left: 4px solid #2271b1;
+                            border-radius: 3px;
+                        "
+                    >
+
+                        <strong>Média da avaliação:</strong>
+
+                        <span
+                            style="
+                                font-size: 16px;
+                                font-weight: 600;
+                            "
+                        >
                             <?php
-
-                            if (
-                                array_key_exists(
-                                    $chave,
-                                    $respostas
-                                )
-                            ) {
-
-                                echo esc_html(
-                                    $respostas[ $chave ]
-                                );
-
-                            } else {
-
-                                echo '—';
-
-                            }
-
-                            ?>
-
-                        </td>
-
-                    <?php endforeach; ?>
-
-
-                    <!-- MÉDIA -->
-
-                    <td>
-
-                        <?php
-
-                        if ( $media !== null ) {
-
                             echo esc_html(
-                                number_format(
-                                    $media,
-                                    1,
-                                    ',',
-                                    '.'
-                                )
+                                number_format_i18n( $media, 1 )
                             );
+                            ?> / 5
+                        </span>
 
-                        } else {
+                    </div>
 
-                            echo '—';
+                <?php endif; ?>
 
-                        }
-
-                        ?>
-
-                    </td>
-
-
-                    <!-- DATA -->
-
-                    <td>
-
-                        <?php
-
-                        if ( ! empty( $avaliacao['data_avaliacao'] ) ) {
-
-                            echo esc_html(
-                                date_i18n(
-                                    'd/m/Y H:i',
-                                    strtotime(
-                                        $avaliacao['data_avaliacao']
-                                    )
-                                )
-                            );
-
-                        } else {
-
-                            echo '—';
-
-                        }
-
-                        ?>
-
-                    </td>
-
-                </tr>
-
-
-                <!-- COMENTÁRIO -->
+                <!-- COMENTÁRIOS -->
 
                 <?php if ( ! empty( $avaliacao['comentario'] ) ) : ?>
 
-                    <tr>
+                    <div style="margin-top: 16px;">
 
-                        <td
-                            colspan="<?php
-                                echo esc_attr(
-                                    count( $perguntas ) + 3
-                                );
-                            ?>"
-                        >
+                        <strong>Comentários adicionais:</strong>
 
-                            <strong>
-                                Comentário:
-                            </strong>
-
+                        <p>
                             <?php
                             echo nl2br(
                                 esc_html(
@@ -942,19 +1061,17 @@ function render_avaliacoes_professores_vivencia( $vivencia_id ) {
                                 )
                             );
                             ?>
+                        </p>
 
-                        </td>
-
-                    </tr>
+                    </div>
 
                 <?php endif; ?>
 
+            </div>
 
-            <?php endforeach; ?>
+        <?php endforeach; ?>
 
-        </tbody>
-
-    </table>
+    </div>
 
     <?php
 }
@@ -1050,4 +1167,423 @@ function identificar_participante_avaliacao( $vivencia_id, $documento ) {
         'participante_nao_encontrado',
         'Não encontramos seu cadastro entre os participantes desta vivência.'
     );
+}
+
+function get_unidades_produtivas_vivencia( $vivencia_id ) {
+
+    $roteiro_id = absint( get_post_meta( $vivencia_id, 'id_roteiro_inscricao', true ) );
+
+    if ( ! $roteiro_id ) {
+        return [];
+    }
+
+    $unidades = get_post_meta( $roteiro_id, 'ids_up_roteiro', true );
+    
+    if ( ! is_array( $unidades ) ) {
+        return [];
+    }
+
+    return array_values( array_unique( array_filter( array_map( 'absint', $unidades ) ) ) );
+}
+
+function unidade_pertence_vivencia( $vivencia_id, $unidade_id ) {
+
+    $unidades = get_unidades_produtivas_vivencia( $vivencia_id );
+
+    return in_array( absint( $unidade_id ), $unidades, true );
+}
+
+function gerar_token_avaliacao_unidade( $vivencia_id, $unidade_id ) {
+
+    $vivencia_id = absint( $vivencia_id );
+    $unidade_id  = absint( $unidade_id );
+
+    if (
+        ! $vivencia_id ||
+        ! unidade_pertence_vivencia( $vivencia_id, $unidade_id )
+    ) {
+        return false;
+    }
+
+    $tokens = get_post_meta(
+        $vivencia_id,
+        'tokens_avaliacao_unidades',
+        true
+    );
+
+    if ( ! is_array( $tokens ) ) {
+        $tokens = [];
+    }
+
+    /*
+     * Reutiliza o token existente.
+     * Isso evita invalidar um link já enviado por e-mail.
+     */
+    if (
+        ! empty( $tokens[ $unidade_id ] ) &&
+        is_string( $tokens[ $unidade_id ] )
+    ) {
+        return $tokens[ $unidade_id ];
+    }
+
+    /*
+     * Gera um token aleatório de 64 caracteres.
+     */
+    $token = bin2hex( random_bytes( 32 ) );
+
+    $tokens[ $unidade_id ] = $token;
+
+    update_post_meta(
+        $vivencia_id,
+        'tokens_avaliacao_unidades',
+        $tokens
+    );
+
+    return $token;
+}
+
+function validar_convite_avaliacao_unidade( $vivencia_id, $unidade_id, $token ) {
+
+    $vivencia_id = absint( $vivencia_id );
+    $unidade_id  = absint( $unidade_id );
+
+    if (
+        ! $vivencia_id ||
+        ! $unidade_id ||
+        ! is_string( $token ) ||
+        $token === ''
+    ) {
+        return false;
+    }
+
+    /*
+     * Confirma que a unidade pertence à vivência.
+     */
+    if ( ! unidade_pertence_vivencia( $vivencia_id, $unidade_id ) ) {
+        return false;
+    }
+
+    /*
+     * Recupera os tokens armazenados na inscrição.
+     */
+    $tokens = get_post_meta(
+        $vivencia_id,
+        'tokens_avaliacao_unidades',
+        true
+    );
+
+    if (
+        ! is_array( $tokens ) ||
+        empty( $tokens[ $unidade_id ] ) ||
+        ! is_string( $tokens[ $unidade_id ] )
+    ) {
+        return false;
+    }
+
+    /*
+     * Compara os tokens de maneira segura.
+     */
+    return hash_equals(
+        $tokens[ $unidade_id ],
+        $token
+    );
+}
+
+function avaliacao_unidade_ja_realizada( $vivencia_id, $unidade_id ) {
+
+    global $wpdb;
+
+    $tabela = $wpdb->prefix . 'avaliacoes_vivencias';
+
+    $avaliacao_id = $wpdb->get_var(
+        $wpdb->prepare(
+            "SELECT id
+             FROM {$tabela}
+             WHERE vivencia_id = %d
+               AND tipo = %s
+               AND identificador = %s
+             LIMIT 1",
+            absint( $vivencia_id ),
+            'unidade',
+            (string) absint( $unidade_id )
+        )
+    );
+
+    return ! empty( $avaliacao_id );
+}
+
+function get_link_avaliacao_unidade( $vivencia_id, $unidade_id ) {
+
+    $vivencia_id = absint( $vivencia_id );
+    $unidade_id  = absint( $unidade_id );
+
+    $token = gerar_token_avaliacao_unidade(
+        $vivencia_id,
+        $unidade_id
+    );
+
+    if ( ! $token ) {
+        return false;
+    }
+
+    return add_query_arg(
+        [
+            'vivencia' => $vivencia_id,
+            'tipo'     => 'unidade',
+            'unidade'  => $unidade_id,
+            'token'    => $token,
+        ],
+        home_url( '/avaliar-vivencia/' )
+    );
+}
+
+function render_avaliacoes_unidades_vivencia( $vivencia_id ) {
+
+    /*
+     * Recupera as unidades vinculadas à vivência.
+     */
+    $unidades = get_unidades_produtivas_vivencia( $vivencia_id );    
+
+    if ( empty( $unidades ) ) {
+        echo '<p>Nenhuma Unidade Produtiva vinculada a esta vivência.</p>';
+        return;
+    }
+
+    /*
+     * Recupera as avaliações das unidades.
+     */
+    $avaliacoes = get_avaliacoes_vivencia(
+        $vivencia_id,
+        'unidade'
+    );   
+
+    /*
+     * Organiza as avaliações pelo ID da unidade.
+     */
+    $avaliacoes_por_unidade = [];
+
+    foreach ( $avaliacoes as $avaliacao ) {
+        $avaliacoes_por_unidade[ (int) $avaliacao['identificador'] ] = $avaliacao;
+    }
+
+    /*
+     * Recupera as perguntas.
+     */
+    $perguntas = get_perguntas_avaliacao_vivencia( 'unidade' );
+
+    ?>
+
+    <div class="avaliacoes-unidades-vivencia">
+
+        <?php foreach ( $unidades as $unidade_id ) : ?>
+
+            <?php
+
+            $nome_unidade = get_the_title( $unidade_id );
+
+            $avaliacao = $avaliacoes_por_unidade[ $unidade_id ] ?? null;
+
+            ?>
+
+            <div
+                style="
+                    border: 1px solid #dcdcde;
+                    background: #fff;
+                    padding: 16px;
+                    margin-bottom: 16px;
+                    border-radius: 4px;
+                "
+            >
+
+                <div
+                    style="
+                        display: flex;
+                        align-items: center;
+                        justify-content: space-between;
+                        gap: 12px;
+                        margin-bottom: 12px;
+                    "
+                >
+
+                    <h5 style="margin: 0;">
+                        <?php echo esc_html( $nome_unidade ); ?>
+                    </h5>
+
+                    <?php if ( $avaliacao ) : ?>
+
+                        <span
+                            style="
+                                color: #008a20;
+                                font-weight: 600;
+                            "
+                        >
+                            ✓ Avaliada
+                        </span>
+
+                    <?php else : ?>
+
+                        <span
+                            style="
+                                color: #996800;
+                                font-weight: 600;
+                            "
+                        >
+                            Aguardando avaliação
+                        </span>
+
+                    <?php endif; ?>
+
+                </div>
+
+                <?php if ( ! $avaliacao ) : ?>
+
+                    <p style="margin-bottom: 0;">
+                        Esta Unidade Produtiva ainda não respondeu à avaliação.
+                    </p>
+
+                <?php else : ?>
+
+                    <?php
+
+                    /*
+                     * Recupera as respostas armazenadas em JSON.
+                     */
+                    $respostas = json_decode(
+                        $avaliacao['respostas'],
+                        true
+                    );
+
+                    if ( ! is_array( $respostas ) ) {
+                        $respostas = [];
+                    }
+
+                    /*
+                    * Calcula a média das notas respondidas.
+                    */
+                    $notas = [];
+
+                    foreach ( $perguntas as $chave => $configuracao ) {
+
+                        if (
+                            array_key_exists( $chave, $respostas ) &&
+                            is_numeric( $respostas[ $chave ] )
+                        ) {
+                            $notas[] = (float) $respostas[ $chave ];
+                        }
+                    }
+
+                    $media = count( $notas ) > 0
+                        ? array_sum( $notas ) / count( $notas )
+                        : null;
+
+                    ?>
+
+                    <p>
+                        <strong>Data da avaliação:</strong>
+                        <?php
+                        echo esc_html(
+                            mysql2date(
+                                'd/m/Y H:i',
+                                $avaliacao['data_avaliacao']
+                            )
+                        );
+                        ?>
+                    </p>
+
+                    <table class="widefat striped">
+
+                        <thead>
+                            <tr>
+                                <th>Pergunta</th>
+                                <th style="width: 90px; text-align: center;">
+                                    Nota
+                                </th>
+                            </tr>
+                        </thead>
+
+                        <tbody>
+
+                            <?php foreach ( $perguntas as $chave => $configuracao ) : ?>
+
+                                <tr>
+
+                                    <td>
+                                        <?php echo esc_html( $configuracao['pergunta'] ); ?>
+                                    </td>
+
+                                    <td style="text-align: center;">
+
+                                        <?php if ( array_key_exists( $chave, $respostas ) ) : ?>
+
+                                            <strong>
+                                                <?php echo esc_html( $respostas[ $chave ] ); ?>/5
+                                            </strong>
+
+                                        <?php else : ?>
+
+                                            —
+
+                                        <?php endif; ?>
+
+                                    </td>
+
+                                </tr>
+
+                            <?php endforeach; ?>
+
+                        </tbody>
+
+                    </table>
+
+                    <?php if ( $media !== null ) : ?>
+
+                        <div
+                            style="
+                                margin-top: 12px;
+                                padding: 12px;
+                                background: #f0f6fc;
+                                border-left: 4px solid #2271b1;
+                                border-radius: 3px;
+                            "
+                        >
+                            <strong>Média da avaliação:</strong>
+
+                            <span style="font-size: 16px; font-weight: 600;">
+                                <?php
+                                echo esc_html(
+                                    number_format_i18n( $media, 1 )
+                                );
+                                ?> / 5
+                            </span>
+                        </div>
+
+                    <?php endif; ?>
+
+                    <?php if ( ! empty( $avaliacao['comentario'] ) ) : ?>
+
+                        <div style="margin-top: 16px;">
+
+                            <strong>Comentários adicionais:</strong>
+
+                            <p>
+                                <?php
+                                echo nl2br(
+                                    esc_html( $avaliacao['comentario'] )
+                                );
+                                ?>
+                            </p>
+
+                        </div>
+
+                    <?php endif; ?>
+
+                <?php endif; ?>
+
+            </div>
+
+        <?php endforeach; ?>
+
+    </div>
+
+    <?php
 }
