@@ -34,20 +34,27 @@ jQuery(document).ready(function($) {
             fetch(ajax_params.admin_ajax, {
                 method: 'POST',
                 body: formData
-            }).then(response => response.json()).then(data => {
-                if(data.success){
-                    if(data.data){
-                        Swal.fire({
-                            icon: "success",
-                            position: "center",
-                            html: '<b>'+data.data.msg+'</b>',
-                            showConfirmButton: false,
-                            timer: 3000
-                        });
-                        setTimeout(() => {
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success && data.data) {
+                    Swal.fire({
+                        icon: 'success',
+                        position: 'center',
+                        html: '<b>' + data.data.msg + '</b><p>Gostaria de avaliar a vivência agora?</p>',
+                        showConfirmButton: true,
+                        showCancelButton: true,
+                        confirmButtonText: 'Avaliar agora',
+                        cancelButtonText: 'Agora não',
+                        allowOutsideClick: false,
+                        allowEscapeKey: false
+                    }).then((result) => {
+                        if (result.isConfirmed && data.data.url_avaliacao) {
+                            window.location.href = data.data.url_avaliacao;
+                        } else {
                             window.location.reload();
-                        }, 3000);
-                    }
+                        }
+                    });
                 }
             }).catch(error => {
                 console.log('Erro na requisição:', error);

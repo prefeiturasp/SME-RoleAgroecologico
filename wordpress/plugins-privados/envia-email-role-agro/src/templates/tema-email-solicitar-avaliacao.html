@@ -1,0 +1,51 @@
+<html>
+    <head>
+        <style>
+            body { font-family: Arial, sans-serif; color: #333; }
+            .container { max-width: 700px; margin: 0 auto; padding: 30px; background-color: #f9f9f9; border: 1px solid #ddd; box-sizing: border-box; }
+            .dado { margin: 10px 0 20px 0; }
+            .espaco { padding-top: 18px; }
+            .lista { line-height: 1.7rem; }
+            .destaque { font-weight: 600; color: #87AE27; font-size: 1rem; margin-top: 30px; }
+            .rodape { margin-top: 5rem; }
+            .rodape .destaque { color: #005C2C; }
+            .rodape #logomarcas { display: flex; justify-content: start; align-items: center; }
+            .rodape #logomarcas img { margin-right: 5px; padding: 1.2rem 0; max-width: 15%; }
+        </style>
+    </head>
+    <body>
+        <div class='container'>
+            <p class="espaco">Prezada Equipe Escolar,</p>
+            <p class='espaco'>Agradecemos a participação da unidade educacional na vivência pedagógica realizada por meio do Programa Rolê Agroecológico.</p>
+            <p class="espaco">Para contribuir com o aprimoramento das atividades e proporcionar experiências cada vez mais significativas, convidamos os professores e acompanhantes que participaram da vivência como responsáveis pelo grupo a realizarem a Avaliação da Vivência Pedagógica.</p>
+            <p class='espaco lista'>
+                <strong>Data da Vivência:</strong> {DATA_VIVENCIA}<br>
+                <strong>Local:</strong> {LOCAL_VIVENCIA}<br>
+                <strong>Unidade:</strong> {NOME_UNIDADE_EDUCACIONAL}<br>
+            </p>
+            <p class='espaco'>
+                Solicitamos, por gentileza, que a unidade compartilhe esta mensagem com os responsáveis que acompanharam a atividade e oriente aqueles que ainda não responderam à avaliação a acessarem o formulário pelo link abaixo:
+            </p>
+            <p class="destaque">
+                Link para avaliação: <a href="{LINK_FORMULARIO_AVALIACAO}">{LINK_FORMULARIO_AVALIACAO}</a>
+            </p>
+            <p class="espaco">
+                Para acessar o formulário, basta informar o RF ou CPF utilizado no cadastro da vivência. Após a identificação, o participante poderá registrar sua avaliação.
+            </p>
+            <p class="espaco">A participação de todos é muito importante, pois as respostas nos ajudam a identificar pontos positivos e oportunidades de melhoria nas vivências oferecidas.</p>
+            <p class="espaco">Caso o responsável já tenha realizado a avaliação, não será necessário responder novamente.</p>
+            <br>
+            <p class='espaco'>Agradecemos pela colaboração e parceria!</p>
+            
+            <div class="rodape">
+                <p class="destaque">
+                    Atenciosamente<br>
+                    Equipe Rolê Agroecológico
+                </p>
+                <div id="logomarcas">
+                    {IMAGENS_RODAPE}
+                </div>
+            </div>
+        </br>
+    </body>
+</html>

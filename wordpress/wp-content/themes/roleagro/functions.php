@@ -16,6 +16,10 @@ require_once get_template_directory(). '/config/request-endpoints.php';
 require_once get_template_directory(). '/config/middlewares.php';
 require_once get_template_directory(). '/config/register-usuario.php';
 
+#### INCLUDES DE TEMA ####
+require_once get_template_directory(). '/includes/participantes-adicionais.php';
+require_once get_template_directory() . '/includes/avaliacao-vivencias.php';
+
 #### AUTOLOAD
 require plugin_dir_path(__FILE__). 'vendor/autoload.php';
 
