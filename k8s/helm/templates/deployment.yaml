@@ -26,6 +26,7 @@ spec:
       containers:
         - name: apache-waf
           image: {{ .Values.apache.image }}
+          imagePullPolicy: Always
           ports:
             - containerPort: 8080
           envFrom:
