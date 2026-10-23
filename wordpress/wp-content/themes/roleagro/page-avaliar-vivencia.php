@@ -3,6 +3,13 @@
 Template Name: Avaliação de Vivência
 */
 
+// Select2 está registrado no tema, mas precisa ser enfileirado antes do header.
+$av_tipo_pre = isset( $_GET['tipo'] ) ? sanitize_key( wp_unslash( $_GET['tipo'] ) ) : '';
+if ( $av_tipo_pre === 'aluno' ) {
+    nocache_headers();
+    wp_enqueue_script( 'select2' );
+    wp_enqueue_style( 'select2' ); // Ajustar o handle se o CSS tiver outro nome.
+}
 get_header();
 
 
@@ -21,8 +28,8 @@ if ( get_post_meta( $vivencia_id, 'status_inscricao', true ) !== 'realizado' ) {
     return;
 }
 
-$tipo = isset( $_GET['tipo'] ) ? sanitize_key( wp_unslash( $_GET['tipo'] ) ) : 'professor';
-$tipo_valido = in_array( $tipo, [ 'professor', 'unidade' ], true );
+$tipo = isset( $_GET['tipo'] ) ? sanitize_key( wp_unslash( $_GET['tipo'] ) ) : '';
+$tipo_valido = in_array( $tipo, [ '', 'professor', 'aluno', 'unidade' ], true );
 $unidade_id = isset( $_GET['unidade'] ) ? absint( $_GET['unidade'] ) : 0;
 $token = isset( $_GET['token'] ) && is_string( $_GET['token'] )
     ? sanitize_text_field( wp_unslash( $_GET['token'] ) ) : '';
@@ -32,6 +39,19 @@ $erro_identificacao = '';
 $convite_valido = false;
 $avaliacao_realizada = false;
 $resultado = null;
+$codigo_aluno_selecionado = ( $tipo === 'aluno' && isset( $_GET['aluno'] ) ) ? absint( $_GET['aluno'] ) : 0;
+$aluno_selecionado = null;
+$erro_aluno = '';
+if ( $tipo === 'aluno' && is_user_logged_in() && $codigo_aluno_selecionado ) {
+    $aluno_selecionado = get_aluno_vivencia( $vivencia_id, $codigo_aluno_selecionado );
+    if ( ! $aluno_selecionado ) {
+        $erro_aluno = 'Estudante não encontrado nesta vivência.';
+    } elseif ( avaliacao_aluno_ja_realizada( $vivencia_id, $codigo_aluno_selecionado ) ) {
+        $erro_aluno = 'Este estudante já respondeu à avaliação.';
+        $aluno_selecionado = null;
+    }
+}
+
 
 if ( $tipo_valido && $tipo === 'unidade' ) {
     $convite_valido = $unidade_id
@@ -60,6 +80,17 @@ if ( $tipo_valido && $tipo === 'professor' && $_SERVER['REQUEST_METHOD'] === 'PO
     }
 }
 
+// Fluxo dos alunos separado para não interferir no processamento já existente.
+if ( $tipo === 'aluno' && $acao === 'avaliar_aluno_vivencia' && $_SERVER['REQUEST_METHOD'] === 'POST' ) {
+    if ( ! is_user_logged_in() ) {
+        $resultado = new WP_Error( 'acesso_negado', 'É necessário entrar no sistema.' );
+    } elseif ( ! $aluno_selecionado ) {
+        $resultado = new WP_Error( 'aluno_invalido', 'Selecione um estudante válido.' );
+    } else {
+        $resultado = processar_avaliacao_aluno_vivencia( $vivencia_id, $codigo_aluno_selecionado );
+    }
+}
+
 if ( $tipo_valido && $acao === 'avaliar_vivencia' ) {
     if ( $tipo === 'professor' && $participante ) {
         $resultado = processar_formulario_avaliacao_vivencia();
@@ -76,7 +107,9 @@ $data_agendamento = get_post_meta( $vivencia_id, 'data_reservada_para_o_roteiro'
 $data_formatada = $data_agendamento ? date_i18n( 'd/m/Y', strtotime( $data_agendamento ) ) : '';
 $id_unidade_educacional = get_post_meta( $vivencia_id, 'codigo_eol_ue', true );
 $nome_unidade_educacional = get_post_meta( $vivencia_id, 'nome_da_unidade_educacional', true );
-$perguntas = $tipo_valido ? get_perguntas_avaliacao_vivencia( $tipo ) : [];
+$perguntas = in_array( $tipo, [ 'professor', 'unidade' ], true )
+    ? get_perguntas_avaliacao_vivencia( $tipo )
+    : [];
 $mostrar_formulario = $tipo_valido
     && ! is_int( $resultado )
     && ( ( $tipo === 'professor' && $participante )
@@ -126,10 +159,35 @@ $mostrar_formulario = $tipo_valido
         </section>
 
         <div class="container avaliacao-vivencia mb-5">
-            <h1><?php echo $tipo === 'unidade' ? 'Avaliação da Unidade Produtiva' : 'Avaliação da Vivência'; ?></h1>
+            <?php if ( in_array( $tipo, [ 'professor', 'aluno' ], true ) ) : ?>
+                <div class="mb-4">
+                    <a href="<?php echo esc_url( get_link_avaliacao_vivencia( $vivencia_id ) ); ?>" class="btn btn-outline-secondary">
+                        <i class="fa fa-arrow-left mr-2" aria-hidden="true"></i>
+                        Voltar para escolha do perfil
+                    </a>
+                </div>
+            <?php endif; ?>
+            <h1><?php echo esc_html( $tipo === 'unidade' ? 'Avaliação da Unidade Produtiva' : ( $tipo === 'aluno' ? 'Avaliação dos Alunos' : 'Avaliação da Vivência' ) ); ?></h1>
 
             <?php if ( ! $tipo_valido ) : ?>
                 <div class="alert alert-danger">Tipo de avaliação inválido.</div>
+
+            <?php elseif ( $tipo === '' ) : ?>
+                <?php include __DIR__ . '/template-parts/avaliacao/escolher-tipo.php'; ?>
+
+            <?php elseif ( $tipo === 'aluno' ) : ?>
+                <?php if ( ! is_user_logged_in() ) : ?>
+                    <div class="alert alert-warning">Para avaliar estudantes, entre com uma conta do sistema.</div>
+                    <a class="btn btn-success" href="<?php echo esc_url( wp_login_url( get_link_avaliacao_vivencia( $vivencia_id, 'aluno' ) ) ); ?>">Entrar</a>
+                <?php elseif ( is_int( $resultado ) ) : ?>
+                    <div class="alert alert-success">Avaliação enviada com sucesso. Entregue o dispositivo ao monitor.</div>
+                    <a class="btn btn-success" href="<?php echo esc_url( get_link_avaliacao_vivencia( $vivencia_id, 'aluno' ) ); ?>">Selecionar outro estudante</a>
+                <?php elseif ( $codigo_aluno_selecionado && $aluno_selecionado ) : ?>
+                    <?php include __DIR__ . '/template-parts/avaliacao/formulario-aluno.php'; ?>
+                <?php else : ?>
+                    <?php if ( $erro_aluno ) : ?><div class="alert alert-warning"><?php echo esc_html( $erro_aluno ); ?></div><?php endif; ?>
+                    <?php include __DIR__ . '/template-parts/avaliacao/selecionar-aluno.php'; ?>
+                <?php endif; ?>
 
             <?php elseif ( $tipo === 'unidade' && ! $convite_valido ) : ?>
                 <div class="alert alert-danger">O link de avaliação é inválido ou não está autorizado.</div>
