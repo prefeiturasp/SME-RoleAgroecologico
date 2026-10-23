@@ -727,11 +727,7 @@ function render_metabox_avaliacoes_vivencia( $post ) {
             class="avaliacao-tab-content"
             style="display: none;"
         >
-
-            <p>
-                As avaliações dos alunos serão exibidas aqui.
-            </p>
-
+            <?php render_avaliacoes_alunos_vivencia( (int) $post->ID ); ?>
         </div>
 
 
@@ -1585,5 +1581,422 @@ function render_avaliacoes_unidades_vivencia( $vivencia_id ) {
 
     </div>
 
+    <?php
+}
+
+/**
+ * Recupera os alunos vinculados a uma vivência.
+ *
+ * @param int  $vivencia_id
+ * @param bool $somente_presentes
+ *
+ * @return array
+ */
+function get_alunos_vivencia(
+    int $vivencia_id,
+    bool $somente_presentes = false
+): array {
+
+    $turmas = get_post_meta(
+        $vivencia_id,
+        'dados_turmas',
+        true
+    );
+
+    if ( ! is_array( $turmas ) ) {
+        return [];
+    }
+
+    $alunos = [];
+
+    foreach ( $turmas as $turma ) {
+
+        if (
+            ! is_array( $turma ) ||
+            empty( $turma['alunosTurma'] ) ||
+            ! is_array( $turma['alunosTurma'] )
+        ) {
+            continue;
+        }
+
+        $id_turma = absint( $turma['idTurma'] ?? 0 );
+
+        $nome_turma = sanitize_text_field(
+            $turma['nomeTurma'] ?? ''
+        );
+
+        foreach ( $turma['alunosTurma'] as $aluno ) {
+
+            if ( ! is_array( $aluno ) ) {
+                continue;
+            }
+
+            $codigo_aluno = absint(
+                $aluno['codigoAluno'] ?? 0
+            );
+
+            if ( ! $codigo_aluno ) {
+                continue;
+            }
+
+            $presenca = $aluno['confirmacaoPresenca'] ?? false;
+
+            $presenca_confirmada = in_array(
+                $presenca,
+                [ true, 1, '1' ],
+                true
+            );
+
+            if ( $somente_presentes && ! $presenca_confirmada ) {
+                continue;
+            }
+
+            $nome = sanitize_text_field(
+                $aluno['nomeSocialAluno']
+                    ?: ( $aluno['nomeAluno'] ?? '' )
+            );
+
+            $alunos[ $codigo_aluno ] = [
+                'codigoAluno'        => $codigo_aluno,
+                'nomeAluno'          => $nome,
+                'numeroAlunoChamada' => sanitize_text_field(
+                    $aluno['numeroAlunoChamada'] ?? ''
+                ),
+                'idTurma'            => $id_turma,
+                'nomeTurma'          => $nome_turma,
+                'presencaConfirmada' => $presenca_confirmada,
+            ];
+        }
+    }
+
+    return array_values( $alunos );
+}
+
+/**
+ * Busca um aluno pelo código dentro da vivência.
+ *
+ * Retorna os dados do aluno ou null.
+ */
+function get_aluno_vivencia(
+    int $vivencia_id,
+    int $codigo_aluno
+): ?array {
+
+    if ( ! $vivencia_id || ! $codigo_aluno ) {
+        return null;
+    }
+
+    $alunos = get_alunos_vivencia( $vivencia_id );
+
+    foreach ( $alunos as $aluno ) {
+
+        if (
+            (int) $aluno['codigoAluno'] === $codigo_aluno
+        ) {
+            return $aluno;
+        }
+    }
+
+    return null;
+}
+
+/**
+ * Verifica se um aluno já respondeu à avaliação.
+ */
+function avaliacao_aluno_ja_realizada(
+    int $vivencia_id,
+    int $codigo_aluno
+): bool {
+
+    global $wpdb;
+
+    if ( ! $vivencia_id || ! $codigo_aluno ) {
+        return false;
+    }
+
+    $tabela = $wpdb->prefix . 'avaliacoes_vivencias';
+
+    $existe = $wpdb->get_var(
+        $wpdb->prepare(
+            "SELECT id
+             FROM {$tabela}
+             WHERE vivencia_id = %d
+               AND tipo = %s
+               AND identificador = %s
+             LIMIT 1",
+            $vivencia_id,
+            'aluno',
+            (string) $codigo_aluno
+        )
+    );
+
+    return ! empty( $existe );
+}
+
+/**
+ * Recupera os alunos com informação
+ * sobre a avaliação realizada.
+ */
+function get_alunos_status_avaliacao(
+    int $vivencia_id,
+    bool $somente_presentes = false
+): array {
+
+    $alunos = get_alunos_vivencia(
+        $vivencia_id,
+        $somente_presentes
+    );
+
+    $avaliacoes = get_avaliacoes_vivencia(
+        $vivencia_id,
+        'aluno'
+    );
+
+    $respondidos = [];
+
+    foreach ( $avaliacoes as $avaliacao ) {
+
+        $codigo = (string) $avaliacao['identificador'];
+
+        $respondidos[ $codigo ] = true;
+    }
+
+    foreach ( $alunos as &$aluno ) {
+
+        $codigo = (string) $aluno['codigoAluno'];
+
+        $aluno['respondeu'] = isset(
+            $respondidos[ $codigo ]
+        );
+    }
+
+    unset( $aluno );
+
+    return $alunos;
+}
+
+/**
+ * Retorna a URL de avaliação para um tipo específico.
+ */
+function get_link_avaliacao_vivencia(
+    int $vivencia_id,
+    string $tipo = ''
+): string {
+
+    $args = [
+        'vivencia' => $vivencia_id,
+    ];
+
+    if ( in_array( $tipo, [ 'professor', 'aluno' ], true ) ) {
+        $args['tipo'] = $tipo;
+    }
+
+    return add_query_arg(
+        $args,
+        home_url( '/avaliar-vivencia/' )
+    );
+}
+
+function get_perguntas_avaliacao_aluno_vivencia(): array {
+    $sim_nao = [ 'sim' => 'Sim', 'nao' => 'Não' ];
+    $aprendizado = [ 'muitas'=>'Aprendi muitas coisas novas', 'algumas'=>'Aprendi algumas coisas novas', 'poucas'=>'Aprendi poucas coisas novas', 'nenhuma'=>'Não aprendi coisas novas' ];
+    return [
+        'conhecimento_producao' => [ 'pergunta'=>'Antes do Rolê você já sabia que existiam espaços de produção de alimentos dentro da cidade de São Paulo?', 'tipo'=>'opcoes', 'opcoes'=>$sim_nao ],
+        'contato_agricultor' => [ 'pergunta'=>'Antes do Rolê você já tinha conversado com alguém que produz alimentos, como um agricultor ou uma agricultora?', 'tipo'=>'opcoes', 'opcoes'=>$sim_nao ],
+        'experiencia' => [ 'pergunta'=>'De 1 (muito ruim) a 5 (muito boa), que nota você daria para sua experiência no Rolê Agroecológico hoje?', 'tipo'=>'nota' ],
+        'mais_gostou' => [ 'pergunta'=>'O que você mais gostou no Rolê Agroecológico de hoje?', 'tipo'=>'texto', 'obrigatoria'=>true ],
+        'transporte' => [ 'pergunta'=>'De 1 (muito ruim) a 5 (muito bom), que nota você daria para o transporte utilizado para deslocamento até o Rolê Agroecológico hoje?', 'tipo'=>'nota' ],
+        'reflexao_alimentos' => [ 'pergunta'=>'O Rolê fez você pensar sobre de onde vêm os alimentos, quem planta e como eles chegam até você?', 'tipo'=>'opcoes', 'opcoes'=>$sim_nao ],
+        'experimentou_alimento' => [ 'pergunta'=>'No Rolê, você experimentou algum alimento que nunca tinha experimentado ou que não costuma comer no dia a dia?', 'tipo'=>'opcoes', 'opcoes'=>$sim_nao ],
+        'aprendizado_natureza' => [ 'pergunta'=>'Você acha que aprendeu coisas novas sobre a natureza e os espaços verdes da cidade?', 'tipo'=>'opcoes', 'opcoes'=>$aprendizado ],
+        'aprendizado_agricultura' => [ 'pergunta'=>'Você acha que aprendeu coisas novas sobre os alimentos, a agricultura e a produção de alimentos?', 'tipo'=>'opcoes', 'opcoes'=>$aprendizado ],
+        'interesse_horta' => [ 'pergunta'=>'Depois do Rolê, você ficou com vontade de ajudar a criar ou melhorar uma horta na sua escola?', 'tipo'=>'opcoes', 'opcoes'=>[ 'muita'=>'Fiquei com muita vontade', 'alguma'=>'Fiquei com alguma vontade', 'pouca'=>'Fiquei com pouca vontade', 'nenhuma'=>'Não fiquei com vontade' ] ],
+        'recomendacao' => [ 'pergunta'=>'Você recomendaria o Rolê Agroecológico para outro estudante?', 'tipo'=>'opcoes', 'opcoes'=>[ 'sim'=>'Sim', 'nao'=>'Não', 'nao_sei'=>'Não sei' ] ],
+        'sugestao' => [ 'pergunta'=>'Se quiser, deixe uma sugestão ou comentário sobre o seu dia:', 'tipo'=>'texto', 'obrigatoria'=>false ],
+    ];
+}
+
+function processar_avaliacao_aluno_vivencia( int $vivencia_id, int $codigo_aluno ) {
+    global $wpdb;
+
+    if ( ! is_user_logged_in() ) {
+        return new WP_Error( 'sem_login', 'É necessário entrar no sistema.' );
+    }
+    if ( ! isset( $_POST['_wpnonce'] ) || ! is_string( $_POST['_wpnonce'] ) || ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['_wpnonce'] ) ), 'avaliar_aluno_vivencia_' . $vivencia_id . '_' . $codigo_aluno ) ) {
+        return new WP_Error( 'nonce_invalido', 'A sessão do formulário expirou. Recarregue a página.' );
+    }
+    if ( get_post_meta( $vivencia_id, 'status_inscricao', true ) !== 'realizado' ) {
+        return new WP_Error( 'status_invalido', 'Esta vivência não está disponível para avaliação.' );
+    }
+    $aluno = get_aluno_vivencia( $vivencia_id, $codigo_aluno );
+    if ( ! $aluno ) {
+        return new WP_Error( 'aluno_invalido', 'O estudante não pertence à vivência.' );
+    }
+    if ( avaliacao_aluno_ja_realizada( $vivencia_id, $codigo_aluno ) ) {
+        return new WP_Error( 'ja_respondeu', 'Este estudante já respondeu à avaliação.' );
+    }
+    $enviadas = isset( $_POST['respostas'] ) && is_array( $_POST['respostas'] ) ? wp_unslash( $_POST['respostas'] ) : [];
+    $respostas = [];
+    foreach ( get_perguntas_avaliacao_aluno_vivencia() as $chave => $config ) {
+        $valor = $enviadas[ $chave ] ?? '';
+        if ( ! is_scalar( $valor ) ) {
+            return new WP_Error( 'resposta_invalida', 'Uma das respostas é inválida.' );
+        }
+        $valor = trim( (string) $valor );
+        $obrigatoria = $config['obrigatoria'] ?? true;
+        if ( $valor === '' ) {
+            if ( $obrigatoria ) {
+                return new WP_Error( 'resposta_obrigatoria', 'Responda todas as perguntas obrigatórias.' );
+            }
+            $respostas[ $chave ] = '';
+            continue;
+        }
+        if ( $config['tipo'] === 'nota' ) {
+            $nota = filter_var( $valor, FILTER_VALIDATE_INT );
+            if ( $nota === false || $nota < 1 || $nota > 5 ) {
+                return new WP_Error( 'nota_invalida', 'As notas devem estar entre 1 e 5.' );
+            }
+            $respostas[ $chave ] = $nota;
+        } elseif ( $config['tipo'] === 'opcoes' ) {
+            if ( ! array_key_exists( $valor, $config['opcoes'] ) ) {
+                return new WP_Error( 'opcao_invalida', 'Uma das alternativas escolhidas é inválida.' );
+            }
+            $respostas[ $chave ] = $valor;
+        } else {
+            $texto = sanitize_textarea_field( $valor );
+            if ( mb_strlen( $texto ) > 1000 ) {
+                return new WP_Error( 'texto_longo', 'Cada resposta aberta deve ter até 1000 caracteres.' );
+            }
+            $respostas[ $chave ] = $texto;
+        }
+    }
+
+    $agora = current_time( 'mysql' );
+    $tabela = $wpdb->prefix . 'avaliacoes_vivencias';
+    $salvo = $wpdb->insert( $tabela, [
+        'vivencia_id' => $vivencia_id,
+        'tipo' => 'aluno',
+        'identificador' => (string) $codigo_aluno,
+        'nome' => $aluno['nomeAluno'],
+        'respostas' => wp_json_encode( $respostas, JSON_UNESCAPED_UNICODE ),
+        'comentario' => '',
+        'data_avaliacao' => $agora,
+        'created_at' => $agora,
+    ], [ '%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s' ] );
+
+    if ( $salvo === false ) {
+        if ( avaliacao_aluno_ja_realizada( $vivencia_id, $codigo_aluno ) ) {
+            return new WP_Error( 'ja_respondeu', 'Este estudante já respondeu à avaliação.' );
+        }
+        return new WP_Error( 'erro_banco', 'Não foi possível salvar a avaliação.' );
+    }
+    return (int) $wpdb->insert_id;
+}
+
+
+function render_avaliacoes_alunos_vivencia( int $vivencia_id ): void {
+    $avaliacoes = get_avaliacoes_vivencia( $vivencia_id, 'aluno' );
+    $perguntas = get_perguntas_avaliacao_aluno_vivencia();
+    $alunos = get_alunos_vivencia( $vivencia_id );
+    $nomes = [];
+    foreach ( $alunos as $aluno ) {
+        $nomes[ (string) $aluno['codigoAluno'] ] = $aluno['nomeAluno'];
+    }
+
+    $totais = [ 'experiencia' => [], 'transporte' => [], 'geral' => [] ];
+    $distribuicoes = [];
+    $linhas = [];
+
+    foreach ( $avaliacoes as $avaliacao ) {
+        $respostas = json_decode( (string) ( $avaliacao['respostas'] ?? '' ), true );
+        if ( ! is_array( $respostas ) ) { $respostas = []; }
+        $notas = [];
+        foreach ( [ 'experiencia', 'transporte' ] as $chave ) {
+            $valor = $respostas[ $chave ] ?? null;
+            if ( ( is_int( $valor ) || ( is_string( $valor ) && ctype_digit( $valor ) ) ) && (int) $valor >= 1 && (int) $valor <= 5 ) {
+                $notas[ $chave ] = (int) $valor;
+                $totais[ $chave ][] = (int) $valor;
+            }
+        }
+        if ( count( $notas ) === 2 ) {
+            $totais['geral'][] = ( $notas['experiencia'] + $notas['transporte'] ) / 2;
+        }
+        foreach ( $perguntas as $chave => $config ) {
+            if ( ( $config['tipo'] ?? '' ) !== 'opcoes' ) { continue; }
+            $valor = $respostas[ $chave ] ?? null;
+            if ( is_string( $valor ) && isset( $config['opcoes'][ $valor ] ) ) {
+                $distribuicoes[ $chave ][ $valor ] = ( $distribuicoes[ $chave ][ $valor ] ?? 0 ) + 1;
+            }
+        }
+        $linhas[] = [ 'avaliacao' => $avaliacao, 'respostas' => $respostas, 'notas' => $notas ];
+    }
+
+    $media = static function ( array $valores ): string {
+        return $valores ? number_format_i18n( array_sum( $valores ) / count( $valores ), 2 ) : '—';
+    };
+
+    ?>
+
+    <h3>Resumo das avaliações dos estudantes</h3>
+
+    <p><strong><?php echo esc_html( count( $avaliacoes ) ); ?></strong> avaliações recebidas de <strong><?php echo esc_html( count( $alunos ) ); ?></strong> estudantes cadastrados.</p>
+    
+    <table class="widefat striped" style="margin-bottom:22px">
+        <thead><tr><th>Indicador</th><th>Média (1 a 5)</th><th>Respostas consideradas</th></tr></thead>
+        <tbody>
+            <tr><td>Experiência no Rolê</td><td><strong><?php echo esc_html( $media( $totais['experiencia'] ) ); ?></strong></td><td><?php echo esc_html( count( $totais['experiencia'] ) ); ?></td></tr>
+            <tr><td>Transporte</td><td><strong><?php echo esc_html( $media( $totais['transporte'] ) ); ?></strong></td><td><?php echo esc_html( count( $totais['transporte'] ) ); ?></td></tr>
+            <tr><td><strong>Média geral (experiência + transporte)</strong></td><td><strong><?php echo esc_html( $media( $totais['geral'] ) ); ?></strong></td><td><?php echo esc_html( count( $totais['geral'] ) ); ?></td></tr>
+        </tbody>
+    </table>
+
+    <?php if ( ! $avaliacoes ) : ?>
+        <p>Nenhuma avaliação de estudante foi realizada até o momento.</p>
+        <?php return; ?>
+    <?php endif; ?>
+
+    <h3>Distribuição das respostas de múltipla escolha</h3>
+
+    <?php foreach ( $perguntas as $chave => $config ) : ?>
+        <?php if ( ( $config['tipo'] ?? '' ) !== 'opcoes' ) { continue; } ?>
+        <?php $total = array_sum( $distribuicoes[ $chave ] ?? [] ); ?>
+        <p><strong><?php echo esc_html( $config['pergunta'] ); ?></strong></p>
+        <table class="widefat striped" style="margin-bottom:18px">
+            <thead><tr><th>Alternativa</th><th>Quantidade</th><th>Percentual</th></tr></thead><tbody>
+            <?php foreach ( $config['opcoes'] as $valor => $rotulo ) : ?>
+                <?php $quantidade = $distribuicoes[ $chave ][ $valor ] ?? 0; ?>
+                <tr><td><?php echo esc_html( $rotulo ); ?></td><td><?php echo esc_html( $quantidade ); ?></td><td><?php echo esc_html( $total ? number_format_i18n( $quantidade * 100 / $total, 1 ) . '%' : '—' ); ?></td></tr>
+            <?php endforeach; ?>
+            </tbody>
+        </table>
+    <?php endforeach; ?>
+
+    <h3>Respostas individuais</h3>
+
+    <div style="overflow-x:auto">
+        <table class="widefat striped">
+            <thead><tr><th>Estudante</th><th>Experiência</th><th>Transporte</th><th>Média individual</th><th>Respostas abertas</th><th>Data</th></tr></thead>
+            <tbody>
+            <?php foreach ( $linhas as $linha ) : ?>
+                <?php
+                $a = $linha['avaliacao']; $r = $linha['respostas']; $n = $linha['notas'];
+                $nome = $nomes[ (string) ( $a['identificador'] ?? '' ) ] ?? ( $a['nome'] ?? 'Estudante não encontrado' );
+                $media_individual = count( $n ) === 2 ? $media( array_values( $n ) ) : '—';
+                ?>
+                <tr>
+                    <td><?php echo esc_html( $nome ); ?></td>
+                    <td><?php echo esc_html( $n['experiencia'] ?? '—' ); ?></td>
+                    <td><?php echo esc_html( $n['transporte'] ?? '—' ); ?></td>
+                    <td><?php echo esc_html( $media_individual ); ?></td>
+                    <td>
+                        <strong>O que mais gostou:</strong> <?php echo nl2br( esc_html( (string) ( $r['mais_gostou'] ?? '' ) ) ); ?><br>
+                        <strong>Sugestão:</strong> <?php echo nl2br( esc_html( (string) ( $r['sugestao'] ?? '' ) ) ); ?>
+                    </td>
+                    <td><?php echo esc_html( $a['data_avaliacao'] ?? '' ); ?></td>
+                </tr>
+            <?php endforeach; ?>
+            </tbody>
+        </table>
+    </div>
     <?php
 }
