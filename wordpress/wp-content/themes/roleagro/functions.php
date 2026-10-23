@@ -39,6 +39,9 @@ new App\Controllers\TransporteController();
 new App\Controllers\TermosUsoController();
 use App\Controllers\TermosUsoController;
 TermosUsoController::init();
+#### CARREGAMENTO DA CLASSE DE CONTROLE DOS USUÁRIOS (PERFIS E PERMISSOES)
+new App\Controllers\Auth\UsuarioController;
+new App\Controllers\Auth\PerfilController;
 
 #### CARREGAMENTO SHORTCODE ACF
 add_action('init', function() {
