@@ -12,13 +12,83 @@ function can_solicitar_cancelamento( int $id_inscricao ) {
     return in_array( $status_inscricao, $status_permitidos );
 }
 
-function tem_disponibilidade_agendamento() {
+/**
+ * Valida a horta da UE autenticada com base no último sorteio salvo.
+ * Retorna true ou WP_Error para que a mesma regra seja usada na página e no endpoint.
+ */
+function valida_situacao_horta_ue( $roteiro_id ) {
+    global $wpdb;
+
+    $permitidas = get_field( 'situacao_horta', $roteiro_id );
+    if ( empty( $permitidas ) ) {
+        return true;
+    }
+
+    $lotacao = get_user_meta( get_current_user_id(), 'unidade_locacao', true );
+    $cie = trim( (string) ( $lotacao['codUnidade'] ?? '' ) );
+    if ( $cie === '' ) {
+        return new WP_Error( 'sem_ue', 'Seu usuário não está vinculado a uma unidade educacional.', ['status' => 403] );
+    }
+
+    $horta = $wpdb->get_var( $wpdb->prepare(
+        "SELECT unidade.horta
+         FROM {$wpdb->prefix}sorteio_unidades AS unidade
+         WHERE unidade.sorteio_id = (
+             SELECT id FROM {$wpdb->prefix}sorteios
+             ORDER BY data_criacao DESC, id DESC
+             LIMIT 1
+         )
+             AND TRIM(LEADING '0' FROM unidade.cie) = %s
+         LIMIT 1",
+        ltrim( $cie, '0' )
+    ) );
+
+    if ( $wpdb->last_error ) {
+        return new WP_Error( 'consulta_horta_indisponivel', 'Não foi possível consultar a situação da horta da sua UE. Tente novamente.', ['status' => 503] );
+    }
+
+    $situacao = str_replace( '-', '_', sanitize_title( (string) $horta ) );
+    if ( !in_array( $situacao, ['sim', 'nao', 'nao_informado'], true ) ) {
+        $situacao = 'nao_informado';
+    }
+
+    if ( !in_array( $situacao, (array) $permitidas, true ) ) {
+
+        return new WP_Error(
+            'situacao_horta',
+            'A situação da horta da sua unidade educacional não atende aos critérios de inscrição deste roteiro.',
+            ['status' => 403]
+        );
+    }
+
+    return true;
+}
+
+/** Retorna status, motivo e mensagem para a disponibilidade de inscrição. */
+function tem_disponibilidade_agendamento( $roteiro_id = 0 ) {
 
     $usuario_id = get_current_user_id();
     $usuario_lotacao = get_user_meta( $usuario_id, 'unidade_locacao', true );
 
     if ( !isset( $usuario_lotacao['codUnidade'] ) || empty( $usuario_lotacao['codUnidade'] ) ) {
-        return false;
+        return [
+            'status' => false,
+            'motivo' => 'sem_ue',
+            'mensagem' => 'Seu usuário não está vinculado a uma unidade educacional.'
+        ];
+    }
+
+    $horta = valida_situacao_horta_ue( $roteiro_id ?: get_the_ID() );
+    if ( is_wp_error( $horta ) ) {
+        return ['status' => false, 'motivo' => $horta->get_error_code(), 'mensagem' => $horta->get_error_message()];
+    }
+
+    if ( !tem_disponibilidade_agendamento_dre() ) {
+        return [
+            'status' => false,
+            'motivo' => 'restricao_dre',
+            'mensagem' => 'Não há disponibilidade de agendamento para sua DRE.'
+        ];
     }
 
     $ano = date( 'Y' );
@@ -50,7 +120,18 @@ function tem_disponibilidade_agendamento() {
         ],
     ]);
 
-    return $query->found_posts < $qtd_agendamentos_permitidos;
+    if ( $query->found_posts >= $qtd_agendamentos_permitidos ) {
+        return [
+            'status' => false,
+            'motivo' => 'limite_ue',
+            'mensagem' => sprintf(
+                'Sua unidade escolar já atingiu o limite de %d agendamento(s) permitido(s) para este ciclo.',
+                $qtd_agendamentos_permitidos
+            )
+        ];
+    }
+
+    return ['status' => true, 'motivo' => null, 'mensagem' => ''];
 }
 
 /**
@@ -278,4 +359,104 @@ function redirect_to_404() {
     include( get_query_template( '404' ) );
 
     exit;
+}
+
+function normaliza_data_ciclo_dre( $valor ) {
+    if ( preg_match( '/^\d{4}$/', (string) $valor ) ) {
+        $valor = obter_data_com_timezone( 'Y', 'America/Sao_Paulo' ) . $valor;
+    }
+    foreach ( ['Ymd', 'Y-m-d', 'd/m/Y'] as $formato ) {
+        $data = DateTimeImmutable::createFromFormat( '!' . $formato, (string) $valor, wp_timezone() );
+        if ( $data && $data->format( $formato ) === (string) $valor ) {
+            return $data->format( 'Y-m-d' );
+        }
+    }
+
+    return false;
+}
+
+/**
+ * Valida a cota da DRE contando inscrições criadas no intervalo configurado.
+ * As configurações são divididas por DRE no campo: "Agendamentos por DRE" em Configurações globais
+ */
+function tem_disponibilidade_agendamento_dre() {
+    $configuracoes = get_field( 'agendamentos_por_dre', 'options' );
+
+    if ( !$configuracoes ) {
+        return true;
+    }
+
+    $dados_ue = get_user_meta( get_current_user_id(), 'dados_ue', true );
+    $sigla_dre = trim( $dados_ue->siglaDRE ?? '' );
+
+    if ( $sigla_dre === '' ) {
+        return false;
+    }
+
+    $dre_selecionada = [];
+    foreach ( $configuracoes as $configuracao ) {
+        $dre = $configuracao['dre'] ?? '';
+        $dre = is_array( $dre ) ? ( $dre['value'] ?? '' ) : $dre;
+        if ( trim( $dre ) === $sigla_dre ) {
+            $dre_selecionada = $configuracao;
+            
+            break;
+        }
+    }
+
+    if ( !$dre_selecionada ) {
+        return true;
+    }
+
+    $quantidade = $dre_selecionada['qtd_agendamentos_permitidos'] ?? '';
+    if ( $quantidade === '' || $quantidade === null || $quantidade === false ) {
+        return true;
+    }
+
+    $inicio_periodo = $dre_selecionada['data_inicio_agendamentos'] ?? '';
+    $fim_periodo = $dre_selecionada['data_fim_agendamentos'] ?? '';
+    $periodo = ['column' => 'post_date', 'inclusive' => true];
+
+    if ( $inicio_periodo !== '' && $inicio_periodo !== null && $inicio_periodo !== false ) {
+        $inicio_periodo = normaliza_data_ciclo_dre( $inicio_periodo );
+        if ( !$inicio_periodo ) {
+            return false;
+        }
+        $periodo['after'] = $inicio_periodo . ' 00:00:00';
+    }
+
+    if ( $fim_periodo !== '' && $fim_periodo !== null && $fim_periodo !== false ) {
+        $fim_periodo = normaliza_data_ciclo_dre( $fim_periodo );
+        if ( !$fim_periodo ) {
+            return false;
+        }
+        $periodo['before'] = $fim_periodo . ' 23:59:59';
+    }
+
+    if ( isset( $periodo['after'], $periodo['before'] ) && $inicio_periodo > $fim_periodo ) {
+        return false;
+    }
+
+    $filtro_args = [
+        'post_type' => 'post_inscricao',
+        'post_status' => ['publish', 'pending', 'private', 'future'],
+        'posts_per_page' => 1,
+        'fields' => 'ids',
+        'meta_query' => [
+            ['key' => 'sigla_dre', 'value' => $sigla_dre],
+            [
+                'relation' => 'OR',
+                ['key' => 'status_inscricao', 'compare' => 'NOT EXISTS'],
+                ['key' => 'status_inscricao', 'value' => 'cancelado', 'compare' => '!='],
+            ],
+        ],
+    ];
+
+    if ( isset( $periodo['after'] ) || isset( $periodo['before'] ) ) {
+        $filtro_args['date_query'] = [$periodo];
+    }
+
+    $query = new WP_Query( $filtro_args );
+
+    return $query->found_posts < (int) $quantidade;
 }

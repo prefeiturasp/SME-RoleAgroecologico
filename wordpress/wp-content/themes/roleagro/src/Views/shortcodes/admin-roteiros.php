@@ -75,7 +75,7 @@ function conteudoDisponibilidadeLocais(){
             $campos = get_field('dias_disponibilidade_visitas', $ids_up[$i]);
             foreach($campos as $campo){
                 $diaSemana = $campo["dia_semana"]->name;
-                $periodo = $campo["periodo"]->name;
+                $periodo = $campo["periodo"]->name ?? 'Não informado';
                 $arrPeriodo .= $diaSemana.' - '.$periodo.', ';
             }
             $arrPeriodo = substr($arrPeriodo,0,-2);
