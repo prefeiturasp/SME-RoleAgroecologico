@@ -79,6 +79,11 @@ function roleagro_registrar_campos_roteiro_inscricoes() {
         return;
     }
 
+    $publico_alvo_global = get_field( 'publico_alvo', 'options' );
+    $publico_alvo = ( is_array( $publico_alvo_global ) && !empty( $publico_alvo_global ) )
+        ? $publico_alvo_global
+        : ['6_ano'];
+
     acf_add_local_field_group([
         'key' => 'group_roteiro_inscricoes',
         'title' => 'Inscrições do roteiro',
@@ -89,7 +94,7 @@ function roleagro_registrar_campos_roteiro_inscricoes() {
                 'name' => 'publico_alvo_roteiro',
                 'type' => 'select',
                 'instructions' => 'O público-alvo do Rolê Agroecológico permanece como 6º ano por padrão.',
-                'required' => 0,
+                'required' => 1,
                 'choices' => [
                     '6_ano' => '6º ano',
                     '7_ano' => '7º ano',
@@ -97,9 +102,9 @@ function roleagro_registrar_campos_roteiro_inscricoes() {
                     '9_ano' => '9º ano',
                     'medio' => 'Ensino Médio',
                 ],
-                'default_value' => '6_ano',
-                'allow_null' => 1,
-                'multiple' => 0,
+                'default_value' => $publico_alvo,
+                'allow_null' => 0,
+                'multiple' => 1,
                 'ui' => 1,
                 'return_format' => 'value',
                 'ajax' => 0,
@@ -115,9 +120,36 @@ function roleagro_registrar_campos_roteiro_inscricoes() {
                     'nao' => 'Não',
                     'nao_informado' => 'Não informado',
                 ],
+                'wrapper' => [
+                    'width' => '50',
+
+                ],
                 'default_value' => 'nao_informado',
                 'layout' => 'horizontal',
                 'return_format' => 'value',
+            ],
+            [
+                'key' => 'field_situacao_horta',
+                'label' => 'Situação da horta das unidades',
+                'name' => 'situacao_horta',
+                'type' => 'select',
+                'instructions' => 'Defina o status da situação das hortas das UEs que podem realizar a inscrição.',
+                'choices' => [
+                    'sim' => 'Sim',
+                    'nao' => 'Não',
+                    'nao_informado' => 'Não informado',
+                ],
+                'wrapper' => [
+                    'width' => '50',
+
+                ],
+                'default_value' => [],
+                'required' => 0,
+                'allow_null' => 1,
+                'multiple' => 1,
+                'ui' => 1,
+                'return_format' => 'value',
+                'ajax' => 0,
             ],
             [
                 'key' => 'field_roteiro_vagas_disponiveis',
