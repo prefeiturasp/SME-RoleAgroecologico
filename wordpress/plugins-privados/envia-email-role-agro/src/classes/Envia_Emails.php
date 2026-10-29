@@ -368,6 +368,10 @@ class Envia_Emails {
                 $this->enviar_notificacao_avaliacao_unidades_produtivas();
             break;
 
+            case 'followup_avaliacao_unidades_produtivas':
+                $this->enviar_notificacao_avaliacao_unidades_produtivas( true, absint( $this->campo_meta ) );
+            break;
+
             case 'notifica_fornecedor_kit_complementar':
                 $this->enviar_notificacao_fornecedor_kit_complementar();
             break;
@@ -492,149 +496,115 @@ class Envia_Emails {
         
     }
 
-    private function enviar_notificacao_avaliacao_unidades_produtivas() {
+    /**
+     * Envia a pesquisa inicial ou um único follow-up para a unidade indicada.
+     * O mesmo assunto, template e token são utilizados em ambos os casos.
+     */
+    private function enviar_notificacao_avaliacao_unidades_produtivas( $followup = false, $unidade_alvo = 0 ) {
 
-        $assunto = 'Avaliação da Vivência - Unidade Produtiva/Parque';
-
-        $headers = [
-            'Content-Type: text/html; charset=UTF-8'
-        ];
-
-        /*
-        * Informações da vivência.
-        */
-        $data_vivencia = get_post_meta(
-            $this->inscricao_id,
-            'data_reservada_para_o_roteiro',
-            true
-        );
-
-        if ( $data_vivencia ) {
-            $data_vivencia = date( 'd/m/Y', strtotime( $data_vivencia ) );
+        $vivencia_id = absint( $this->inscricao_id );
+        $unidade_alvo = absint( $unidade_alvo );
+        if($followup){
+            $assunto = 'Lembrete: Avaliação da Vivência - Unidade Produtiva/Parque';
+        } else {
+            $assunto = 'Avaliação da Vivência - Unidade Produtiva/Parque';
         }
+        $headers = [ 'Content-Type: text/html; charset=UTF-8' ];
 
-        $roteiro_id = get_post_meta(
-            $this->inscricao_id,
-            'id_roteiro_inscricao',
-            true
-        );
-
-        $local = get_the_title( $roteiro_id );
-
-        $id_unidade = get_post_meta(
-            $this->inscricao_id,
-            'codigo_eol_ue',
-            true
-        );
-
-        $nome_unidade = get_post_meta(
-            $this->inscricao_id,
-            'nome_da_unidade_educacional',
-            true
-        );
-
-        $unidade_educacional = $id_unidade . ' - ' . $nome_unidade;
-
-        $logos_rodape = $this->renderizar_rodape_email();
-
-        /*
-        * Recupera as Unidades Produtivas vinculadas
-        * ao roteiro da inscrição.
-        */
-        $unidades = get_unidades_produtivas_vivencia(
-            $this->inscricao_id
-        );
-
-        if ( empty( $unidades ) ) {
+        $unidades = get_unidades_produtivas_vivencia( $vivencia_id );
+        if ( ! is_array( $unidades ) || empty( $unidades ) ) {
             $this->resultado_envio = false;
             return;
         }
 
-        /*
-        * Recupera o template.
-        */
-        $arquivo_template = EMAILS_PLUGIN_BASE_DIR .
-            '/src/templates/tema-email-avaliacao-unidade-produtiva.html';
+        if ( $followup && ( ! $unidade_alvo || ! in_array( $unidade_alvo, array_map( 'absint', $unidades ), true ) ) ) {
+            $this->resultado_envio = false;
+            return;
+        }
 
+        $arquivo_template = EMAILS_PLUGIN_BASE_DIR . '/src/templates/tema-email-avaliacao-unidade-produtiva.html';
         if ( ! is_readable( $arquivo_template ) ) {
             $this->resultado_envio = false;
             return;
         }
 
         $template_original = file_get_contents( $arquivo_template );
-
-        /*
-        * Recupera os envios realizados anteriormente.
-        */
-        $notificacoes = get_post_meta(
-            $this->inscricao_id,
-            'notificacoes_avaliacao_unidades',
-            true
-        );
-
-        if ( ! is_array( $notificacoes ) ) {
-            $notificacoes = [];
+        if ( false === $template_original ) {
+            $this->resultado_envio = false;
+            return;
         }
+
+        $data_vivencia = get_post_meta( $vivencia_id, 'data_reservada_para_o_roteiro', true );
+        $data_vivencia = $data_vivencia ? date( 'd/m/Y', strtotime( $data_vivencia ) ) : '';
+        $roteiro_id = get_post_meta( $vivencia_id, 'id_roteiro_inscricao', true );
+        $local = get_the_title( $roteiro_id );
+        $id_unidade = get_post_meta( $vivencia_id, 'codigo_eol_ue', true );
+        $nome_unidade = get_post_meta( $vivencia_id, 'nome_da_unidade_educacional', true );
+        $unidade_educacional = $id_unidade . ' - ' . $nome_unidade;
+        $logos_rodape = $this->renderizar_rodape_email();
+
+        $notificacoes = get_post_meta( $vivencia_id, 'notificacoes_avaliacao_unidades', true );
+        $notificacoes = is_array( $notificacoes ) ? $notificacoes : [];
+
+        $followups = get_post_meta( $vivencia_id, 'followups_avaliacao_unidades', true );
+        $followups = is_array( $followups ) ? $followups : [];
 
         $resultados = [];
 
-        /*
-        * Envia uma notificação para cada Unidade Produtiva.
-        */
         foreach ( $unidades as $unidade_id ) {
-
-            /*
-            * Evita reenviar notificações já realizadas.
-            */
-            if ( ! empty( $notificacoes[ $unidade_id ] ) ) {
+            $unidade_id = absint( $unidade_id );
+            if ( ! $unidade_id || ( $followup && $unidade_id !== $unidade_alvo ) ) {
                 continue;
             }
 
-            /*
-            * Se a unidade já respondeu, não precisa
-            * receber uma nova solicitação.
-            */
-            if (
-                avaliacao_unidade_ja_realizada(
-                    $this->inscricao_id,
-                    $unidade_id
-                )
-            ) {
+            if ( avaliacao_unidade_ja_realizada( $vivencia_id, $unidade_id ) ) {
                 continue;
             }
 
-            /*
-            * Informações da Unidade Produtiva.
-            */
-            $nome_up = get_the_title( $unidade_id );
+            if ( $followup ) {
+                if ( empty( $notificacoes[ $unidade_id ] ) || ! empty( $followups[ $unidade_id ] ) ) {
+                    continue;
+                }
 
-            $email_up = get_post_meta(
-                $unidade_id,
-                'email_contato',
-                true
-            );
+                // Data original no fuso do WordPress, não UTC.
+                $data_inicial = \DateTimeImmutable::createFromFormat(
+                    '!Y-m-d H:i:s',
+                    (string) $notificacoes[ $unidade_id ],
+                    wp_timezone()
+                );
+                if ( ! $data_inicial || time() <= $data_inicial->getTimestamp() + ( 7 * DAY_IN_SECONDS ) ) {
+                    continue;
+                }
+            } elseif ( ! empty( $notificacoes[ $unidade_id ] ) ) {
+                continue;
+            }
 
+            $email_up = get_post_meta( $unidade_id, 'email_contato', true );
             if ( ! is_email( $email_up ) ) {
                 $resultados[ $unidade_id ] = false;
                 continue;
             }
 
-            /*
-            * Gera o link individual com token.
-            */
-            $link = get_link_avaliacao_unidade(
-                $this->inscricao_id,
-                $unidade_id
-            );
-
+            $link = get_link_avaliacao_unidade( $vivencia_id, $unidade_id );
             if ( ! $link ) {
                 $resultados[ $unidade_id ] = false;
                 continue;
             }
 
-            /*
-            * Monta o e-mail desta unidade.
-            */
+            if ( $followup ) {
+                // add_option é atômico por option_name. A marcação ocorre ANTES do wp_mail
+                // para impedir envios duplicados, inclusive entre workers concorrentes.
+                $chave_tentativa = 'followup_avaliacao_tentado_' . $vivencia_id . '_' . $unidade_id;
+                if ( ! add_option( $chave_tentativa, current_time( 'mysql' ), '', false ) ) {
+                    continue;
+                }
+
+                // Revalida após adquirir a exclusividade de envio.
+                if ( avaliacao_unidade_ja_realizada( $vivencia_id, $unidade_id ) ) {
+                    continue;
+                }
+            }
+
             $template_email = str_replace(
                 [
                     '{IMAGENS_RODAPE}',
@@ -649,61 +619,65 @@ class Envia_Emails {
                     esc_html( $data_vivencia ),
                     esc_html( $local ),
                     esc_html( $unidade_educacional ),
-                    esc_html( $nome_up ),
+                    esc_html( get_the_title( $unidade_id ) ),
                     esc_url( $link ),
                 ],
                 $template_original
             );
 
-            /*
-            * Envia o e-mail.
-            */
             $enviado = $this->enviar_email_com_fallback(
-                $email_up,
-                $assunto,
-                $template_email,
-                $headers
+                $email_up, $assunto, $template_email, $headers
             );
-
             $resultados[ $unidade_id ] = (bool) $enviado;
 
-            /*
-            * Registra individualmente os envios aceitos.
-            */
-            if ( $enviado ) {
+            if ( ! $enviado ) {
+                // Não reexecuta automaticamente: uma tentativa por unidade.
+                error_log( sprintf(
+                    '[Envia_Emails] Follow-up/avaliação não aceito: vivência %d, unidade %d, followup=%d',
+                    $vivencia_id, $unidade_id, (int) $followup
+                ) );
+                continue;
+            }
 
+            if ( $followup ) {
+                $followups[ $unidade_id ] = current_time( 'mysql' );
+                update_post_meta( $vivencia_id, 'followups_avaliacao_unidades', $followups );
+            } else {
                 $notificacoes[ $unidade_id ] = current_time( 'mysql' );
+                update_post_meta( $vivencia_id, 'notificacoes_avaliacao_unidades', $notificacoes );
 
-                update_post_meta(
-                    $this->inscricao_id,
-                    'notificacoes_avaliacao_unidades',
-                    $notificacoes
+                $data_inicial = \DateTimeImmutable::createFromFormat(
+                    '!Y-m-d H:i:s', $notificacoes[ $unidade_id ], wp_timezone()
                 );
+                if ( $data_inicial ) {
+                    $argumentos = [ $vivencia_id, $unidade_id ];
+                    if ( ! wp_next_scheduled( 'verificar_followup_avaliacao_unidade', $argumentos ) ) {
+                        wp_schedule_single_event(
+                            $data_inicial->getTimestamp() + ( 7 * DAY_IN_SECONDS ) + 60,
+                            'verificar_followup_avaliacao_unidade',
+                            $argumentos
+                        );
+                    }
+                }
             }
         }
 
-        /*
-        * Resultado geral da execução.
-        *
-        * Retorna true quando todas as unidades
-        * estão notificadas ou já responderam.
-        */
+        if ( $followup ) {
+            $this->resultado_envio = ! empty( $resultados[ $unidade_alvo ] );
+            return;
+        }
+
+        // Preserva a semântica original: true se todas foram notificadas ou responderam.
         $pendentes = false;
-
         foreach ( $unidades as $unidade_id ) {
-
             if (
                 empty( $notificacoes[ $unidade_id ] ) &&
-                ! avaliacao_unidade_ja_realizada(
-                    $this->inscricao_id,
-                    $unidade_id
-                )
+                ! avaliacao_unidade_ja_realizada( $vivencia_id, $unidade_id )
             ) {
                 $pendentes = true;
                 break;
             }
         }
-
         $this->resultado_envio = ! $pendentes;
     }
 
