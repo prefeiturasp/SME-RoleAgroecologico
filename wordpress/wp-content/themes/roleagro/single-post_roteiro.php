@@ -20,7 +20,8 @@ $vagas_disponiveis = get_field( 'vagas_disponiveis_roteiro', get_the_ID() );
 $link_inscricao = get_field( 'link_inscricao_roteiro', get_the_ID() );
 $observacoes_inscricao = get_field( 'observacoes_inscricao_roteiro', get_the_ID() );
 
-$publico_alvo_roteiro = $publico_alvo_roteiro ?: '6_ano';
+$publico_alvo_roteiro = $publico_alvo_roteiro ?: ['6_ano'];
+$publico_alvo_roteiro = is_array( $publico_alvo_roteiro ) ? $publico_alvo_roteiro : (array) $publico_alvo_roteiro;
 $possibilidade_inscricao = $possibilidade_inscricao ?: 'nao_informado';
 
 $mapa_publico = [
@@ -49,13 +50,15 @@ wp_localize_script('calendario', 'datas', [
     'indisponiveis' => $datas_indisponiveis
 ]);
 
+$disponibilidade_agendamento = can_realizar_agendamentos() ? tem_disponibilidade_agendamento( get_the_ID() ) : null;
+
 ?>
 
-<?php if ( can_realizar_agendamentos() && !tem_disponibilidade_agendamento() ) : ?>
+<?php if ( can_realizar_agendamentos() && !$disponibilidade_agendamento['status'] ) : ?>
     <div class="alert alert-warning container mt-2 text-center" role="alert">
         <strong>
             <i class="fa fa-exclamation-triangle" aria-hidden="true"></i>
-            Sua unidade escolar já atingiu o limite de agendamentos permitidos para este ciclo.    
+            <?php echo esc_html( $disponibilidade_agendamento['mensagem'] ); ?>
         </strong>
     </div>
 <?php endif; ?>
@@ -142,7 +145,14 @@ wp_localize_script('calendario', 'datas', [
                     <section class="mt-4 borda-divisao" id="detalhe-roteiro__inscricoes">
                         <h6>Inscrições</h6>
                         <div class="mt-3">
-                            <p class="mb-2"><strong>Público-alvo:</strong> <?php echo esc_html( $mapa_publico[ $publico_alvo_roteiro ] ?? '6º ano' ); ?></p>
+                            <?php
+                            if ( !empty( $publico_alvo_roteiro ) ) :
+                                $publico_formatado = array_map( function ( $valor ) use ( $mapa_publico ) {
+                                    return $mapa_publico[$valor] ?? $valor;
+                                }, $publico_alvo_roteiro );
+                                ?>
+                                <p class="mb-2"><strong>Público-alvo:</strong> <?php echo esc_html( implode( ", ", $publico_formatado ) ?? '6º ano' ); ?></p>
+                            <?php endif ?>
                             <p class="mb-2"><strong>Possibilidade de inscrição:</strong> <?php echo esc_html( $mapa_inscricao[ $possibilidade_inscricao ] ?? 'Não informado' ); ?></p>
 
                             <?php if ( !empty( $vagas_disponiveis ) ) : ?>
@@ -231,15 +241,11 @@ wp_localize_script('calendario', 'datas', [
                       </div>
                     </div>
                     <div class="row mt-5">
-                        <?php if ( can_realizar_agendamentos() && !tem_disponibilidade_agendamento() ) : ?>
+                        <?php if ( can_realizar_agendamentos() && !$disponibilidade_agendamento['status'] ) : ?>
                             <div class="col d-flex justify-content-center text-info bolder">
                                 <em>
                                     <i class="fa fa-info-circle" aria-hidden="true"></i>
-                                    <?php $limite_agendamentos = intval( get_field( 'quantidade_agendamentos_permitidos', 'options' ) );  ?>
-                                    Sua unidade escolar já atingiu o limite de agendamentos permitidos.
-                                    Neste ciclo, só é possível realizar até 
-                                    <?php echo esc_html( $limite_agendamentos ); ?>
-                                    <?php echo _n( 'agendamento.', 'agendamentos.', $limite_agendamentos ); ?>
+                                    <?php echo esc_html( $disponibilidade_agendamento['mensagem'] ); ?>
                                 </em> 
                             </div>
                         <?php else : ?>

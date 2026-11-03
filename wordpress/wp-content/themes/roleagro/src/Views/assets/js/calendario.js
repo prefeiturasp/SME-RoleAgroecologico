@@ -1,3 +1,44 @@
+var consultaLimiteDiarioAtual = 0;
+var datasLotadasCalendario = new Set();
+
+function atualizaEstiloDatasLotadas() {
+    jQuery('#calendario .day.limite-diario-atingido')
+        .removeClass('limite-diario-atingido').removeAttr('title');
+    datasLotadasCalendario.forEach(function (dia) {
+        jQuery('#calendario .day[data-date="' + dia + '"]')
+            .addClass('limite-diario-atingido')
+            .attr('title', 'Limite diário de agendamentos atingido');
+    });
+}
+
+async function validaLimiteDiarioCalendario(dia) {
+    const consulta = ++consultaLimiteDiarioAtual;
+    try {
+        const url = new URL(calendarioApi.disponibilidadeDia);
+        url.searchParams.set('data', dia);
+        const resposta = await fetch(url, {cache: 'no-store'});
+        const resultado = await resposta.json();
+        if (consulta !== consultaLimiteDiarioAtual) return false;
+        if (!resposta.ok) throw new Error('Falha na consulta');
+        if (resultado.disponivel !== true) {
+            datasLotadasCalendario.add(dia);
+            atualizaEstiloDatasLotadas();
+            await Swal.fire({
+                icon: 'info',
+                text: 'Esta data já atingiu o limite diário de agendamentos. Selecione outra data.'
+            });
+            return false;
+        }
+        datasLotadasCalendario.delete(dia);
+        atualizaEstiloDatasLotadas();
+        return true;
+    } catch (erro) {
+        if (consulta !== consultaLimiteDiarioAtual) return false;
+        await Swal.fire({icon: 'error', text: 'Não foi possível consultar a disponibilidade. Tente novamente.'});
+        return false;
+    }
+}
+
 jQuery(function ($) {
 
 	const paginaAtual = window.location.pathname; // Exemplo: "/pagina"
@@ -83,6 +124,10 @@ jQuery(function ($) {
 							<% }); %>
 						</div>`;
 	
+		window.addEventListener('data-agendamento-validada', function (evento) {
+			selecionada = evento.detail;
+			if (calendario) calendario.render();
+		});
 		// Inicializa CLNDR
 		var calendario = $('#calendario').clndr({
 		template: template,
@@ -107,86 +152,32 @@ jQuery(function ($) {
 			years: anos
 		},
 		clickEvents: {
-			click: function (target) {
-		
-				// 1. Obter os valores das datas
-				var dataMinPermitida = retornaDataMinPermitida();
-				var dataCalendario = target.date._i;
-				
-				const date = target.date.format('YYYY-MM-DD');
-
-				if(paginaAtual.split('/')[1] == 'roteiro'){
-
-					let dtPermitida = verificaDataPermitida(dataCalendario, dataMinPermitida);
-					if(dtPermitida){
-						selecionada = dataCalendario;
-						localStorage.setItem('dataSelecionadaCalendario', dataCalendario);
-					}
-
-				} else if(paginaAtual == '/agendamento/'){
-
-					let agendamento = localStorage.getItem('agendamento');
-
-					if(dataMinPermitidaForm){
-							let permitida = verificaDataPermitida(dataCalendario, dataMinPermitidaForm);
-
-							if(permitida){
-								let dataAge = dataCalendario;
-			
-								if(agendamento) {
-									agendamento = JSON.parse(agendamento);
-									agendamento.dataAgendamento = dataAge;
-								} 
-								localStorage.setItem('agendamento', JSON.stringify(agendamento));
-							} else {
-								return;
-							}
-			
-						if (passeioDatas.bloqueadas.includes(date)) {
-							alert('Data indisponível para reserva.');
-							return;
-						}
-				
-						if (!passeioDatas.disponiveis.includes(date) && !passeioDatas.feriados.includes(date)) {
-							alert('Data não disponível para seleção.');
-							return;
-						}
-
-						selecionada = date;
-						
-					} else {
-						
-						let permitida = verificaDataPermitida(dataCalendario, dataMinPermitida);
-						if(permitida){
-							localStorage.setItem('dataSelecionadaCalendario', dataCalendario);
-							selecionada = dataCalendario;
-
-							if(paginaAtual == '/agendamento/'){
-								this.agendamento.dataAgendamento = dataCalendario;
-								localStorage.setItem('agendamento', JSON.stringify(agendamento));
-							}
-						} else {
-							return;
-						}
-						
-					}
-
+			click: async function (target) {
+				const dia = target.date.format('YYYY-MM-DD');
+				if (passeioDatas.bloqueadas.includes(dia)) {
+					Swal.fire({icon: 'info', text: 'Data indisponível para reserva.'});
+					return;
 				}
-				
+				if (!passeioDatas.disponiveis.includes(dia)) {
+					return;
+				}
+				if (!verificaDataPermitida(dia, retornaDataMinPermitida())) {
+					return;
+				}
+				if (!await validaLimiteDiarioCalendario(dia)) {
+					return;
+				}
 
+				selecionada = dia;
+				localStorage.setItem('dataSelecionadaCalendario', dia);
+				if (paginaAtual === '/agendamento/') {
+					const agendamento = JSON.parse(localStorage.getItem('agendamento') || '{}');
+					agendamento.dataAgendamento = dia;
+					localStorage.setItem('agendamento', JSON.stringify(agendamento));
+					$('#select-datas-disponiveis').val(dia);
+				}
+				window.dispatchEvent(new CustomEvent('data-agendamento-validada', {detail: dia}));
 				calendario.render();
-		
-				// Atualiza input externo se existir
-				if( $('#select-datas-disponiveis').length ) {
-				
-					// Remove a data selecionada anterior, e marca a data selcionada
-					let dataSelecionadaCalendario = localStorage.getItem('dataSelecionadaCalendario');
-					jQuery('.day[data-date="' + dataSelecionadaCalendario + '"]').removeClass('selected');
-
-					localStorage.setItem('dataSelecionadaCalendario', selecionada);
-					$('#select-datas-disponiveis').val(selecionada).trigger('change');
-				}
-			
 			}
 		},
 		doneRendering: function () {
@@ -214,6 +205,8 @@ jQuery(function ($) {
 			if (selecionada) {
 				$('.day[data-date="' + selecionada + '"]').addClass('selected');
 			}
+
+			atualizaEstiloDatasLotadas();
 
 			// Atualiza selects conforme mês/ano exibido no calendário
 			if (calendario && calendario.month) {

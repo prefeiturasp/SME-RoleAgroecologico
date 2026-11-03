@@ -7,14 +7,14 @@
  */
 
 defined('ABSPATH') || die('Ops, acesso negado!');
+define('EMAILS_PLUGIN_BASE_URL', WP_PLUGIN_URL . "/" . dirname(plugin_basename(__FILE__)));
+define('EMAILS_PLUGIN_BASE_DIR', WP_PLUGIN_DIR . "/" . dirname(plugin_basename(__FILE__)));
 
 // Dentro do plugin
 require_once plugin_dir_path(__FILE__) . 'src/classes/Envia_Emails.php';
+require_once EMAILS_PLUGIN_BASE_DIR . '/src/cron-followup-avaliacao-unidades.php';
 
 //require_once 'vendor/autoload.php';
-
-define('EMAILS_PLUGIN_BASE_URL', WP_PLUGIN_URL . "/" . dirname(plugin_basename(__FILE__)));
-define('EMAILS_PLUGIN_BASE_DIR', WP_PLUGIN_DIR . "/" . dirname(plugin_basename(__FILE__)));
 
 function roleagro_email_agendar_lembrete_autorizacoes() {
     if ( wp_next_scheduled( 'roleagro_email_lembrete_autorizacoes_daily' ) ) {

@@ -83,6 +83,10 @@ class AutoCarregamento {
 		
 		//Agendamento
 		wp_enqueue_script('agendamento', VIEWS_PATH . '/assets/js/agendamento.js',  '1.0', 'all', true);
+		wp_localize_script('agendamento', 'agendamentoApi', [
+			'salvarUrl' => rest_url('agendamento/salvar'),
+			'nonce' => wp_create_nonce('wp_rest'),
+		]);
 		wp_enqueue_script('admin-agendamento', VIEWS_PATH . '/assets/js/admin-agendamento.js',  '1.0', 'all', true);
 
 		wp_enqueue_script('dietas-alunos', get_template_directory_uri() . '/src/Views/assets/js/dietas-alunos.js', array('jquery'), '1.0', true);

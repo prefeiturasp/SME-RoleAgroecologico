@@ -140,11 +140,50 @@ class RoteiroController {
         return $datas;
     }
 
+    /** Disponibilidade global para uma única data de visita em Y-m-d. */
+    public static function get_disponibilidade_diaria( $dia ) {
+        global $wpdb;
+
+        $data = DateTime::createFromFormat( '!Y-m-d', $dia );
+        if ( !$data || $data->format( 'Y-m-d' ) !== $dia ) {
+            return new \WP_Error( 'data_invalida', 'Informe uma data válida.', ['status' => 400] );
+        }
+
+        $limite = get_field( 'qtd_agendamentos_dia', 'options' );
+        if ( $limite === '' || $limite === null || $limite === false ) {
+            return ['disponivel' => true, 'quantidade' => null, 'limite' => null];
+        }
+
+        $quantidade = (int) $wpdb->get_var( $wpdb->prepare(
+            "SELECT COUNT(DISTINCT inscricao.ID)
+             FROM {$wpdb->posts} AS inscricao
+             INNER JOIN {$wpdb->postmeta} AS data_visita
+                 ON data_visita.post_id = inscricao.ID
+                 AND data_visita.meta_key = 'data_reservada_para_o_roteiro'
+             WHERE inscricao.post_type = 'post_inscricao'
+                 AND inscricao.post_status IN ('publish', 'pending')
+                 AND data_visita.meta_value = %s
+                 AND NOT EXISTS (
+                     SELECT 1 FROM {$wpdb->postmeta} AS situacao
+                     WHERE situacao.post_id = inscricao.ID
+                         AND situacao.meta_key = 'status_inscricao'
+                         AND situacao.meta_value = 'cancelado'
+                 )",
+            $dia
+        ) );
+
+        if ( $wpdb->last_error ) {
+            return new \WP_Error( 'consulta_indisponivel', 'Não foi possível consultar a disponibilidade.', ['status' => 503] );
+        }
+
+        return ['disponivel' => $quantidade < (int) $limite, 'quantidade' => $quantidade, 'limite' => (int) $limite];
+    }
+
     public function get_datas_indisponiveis() {
         $datas_indisponiveis = [];
         $datas_indisponiveis_unidades = [];
         $unidades_roteiro = get_post_meta( $this->roteiro_id, 'ids_up_roteiro', true );
-
+        
         /**
          * Busca todas as datas com agendamentos realizados para o roteiro
         */

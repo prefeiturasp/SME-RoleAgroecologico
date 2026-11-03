@@ -51,8 +51,9 @@ if (!usuario_pode_inscrever_por_sorteio()) {
     );
 }
 
-if ( !tem_disponibilidade_agendamento() ) {
-    wp_redirect( get_the_permalink( $post_ID ) );
+$disponibilidade_agendamento = tem_disponibilidade_agendamento( absint( $post_ID ) );
+if ( !$disponibilidade_agendamento['status'] ) {
+    wp_redirect_with_message( get_the_permalink( $post_ID ), $disponibilidade_agendamento['mensagem'], 'warning' );
     exit;
 }
 
@@ -74,7 +75,7 @@ the_post();
 
 ?>
 
-<div class="page-wrapper content-wrapper page-agendamento my-2" x-data="agendamentoForm()" x-init="carregarDados()">
+<div class="page-wrapper content-wrapper page-agendamento my-2" x-data="agendamentoForm()" x-init="carregarDados()" x-on:data-agendamento-validada.window="dados.dataAgendamento = $event.detail">
     <?php
     get_template_part( 'src/Views/template-parts/page-header-verde', null, [
         'titulo_pagina' => 'Reserve seu Rolê'

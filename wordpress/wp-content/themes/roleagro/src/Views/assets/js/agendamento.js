@@ -475,10 +475,21 @@ function agendamentoForm() {
                 window.history.back();
             }
         },
-        alteraDataSelect(){
+        async alteraDataSelect(){
            
             let dataSelecionadaCalendario = localStorage.getItem('dataSelecionadaCalendario');
             let valorSelecionado = jQuery("#select-datas-disponiveis").val();
+
+            this.validandoData = true;
+            const disponivel = await validaLimiteDiarioCalendario(valorSelecionado);
+            this.validandoData = false;
+            if (!disponivel) {
+                const anterior = localStorage.getItem('dataSelecionadaCalendario') || '';
+                this.dados.dataAgendamento = anterior;
+                jQuery("#select-datas-disponiveis").val(anterior);
+                return;
+            }
+            this.dados.dataAgendamento = valorSelecionado;
             
             // Remove a data selecionada anterior, e marca a data selcionada
             jQuery('.day[data-date="' + dataSelecionadaCalendario + '"]').removeClass('selected');
@@ -488,9 +499,14 @@ function agendamentoForm() {
             agendamento.dataAgendamento = valorSelecionado;
             localStorage.setItem('agendamento', JSON.stringify(agendamento));
             localStorage.setItem('dataSelecionadaCalendario', valorSelecionado);
+            window.dispatchEvent(new CustomEvent('data-agendamento-validada', {detail: valorSelecionado}));
 
         },
         validar() {
+            if (this.validandoData) {
+                Swal.fire({icon: 'info', text: 'Aguarde a consulta de disponibilidade da data.'});
+                return false;
+            }
 
             if (this.step === 1){
 
@@ -1027,9 +1043,13 @@ function agendamentoForm() {
                 dadosAcompanhantes: acompanhantes
             }
             
-            fetch("/wp-json/agendamento/salvar", {
+            fetch(agendamentoApi.salvarUrl, {
                 method: 'POST', 
-                headers: {'Content-Type': 'application/json'},
+                credentials: 'same-origin',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-WP-Nonce': agendamentoApi.nonce
+                },
                 body: JSON.stringify(dados)
             }).then(response => response.json()).then(data => {
                 if(data['success']){
@@ -1039,9 +1059,16 @@ function agendamentoForm() {
                     setTimeout(() => {
                         window.location.href = '/meus-agendamentos';
                     },2000);
+                } else {
+                    const mensagem = data.message || (data.data && data.data.message) || 'Não foi possível salvar o agendamento. Tente novamente.';
+                    if (data.code === 'limite_diario_atingido') {
+                        datasLotadasCalendario.add(dadosAgendamento.dataAgendamento);
+                        atualizaEstiloDatasLotadas();
+                    }
+                    Swal.fire({icon: 'warning', text: mensagem});
                 }
             }).catch(() => {
-                console.log('Erro ao carregar pessoas');
+                Swal.fire({icon: 'error', text: 'Não foi possível confirmar o agendamento. Verifique sua conexão e tente novamente.'});
             });
         },
         verificaData(valor){

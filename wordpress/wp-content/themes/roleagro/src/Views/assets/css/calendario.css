@@ -82,6 +82,15 @@
   font-weight: 700;
 }
 
+/* Data que atingiu o limite de agendamentos */
+#calendario .day.limite-diario-atingido,
+#calendario .day.limite-diario-atingido:hover {
+  background-color: #f8d7da;
+  color: #842029;
+  text-decoration: line-through;
+  box-shadow: inset 0 0 0 2px #b02a37;
+}
+
 /* Dia selecionado */
 .day.selected {
   background-color: #027e27ff;

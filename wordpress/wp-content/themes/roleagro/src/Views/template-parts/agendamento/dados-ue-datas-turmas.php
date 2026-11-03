@@ -10,13 +10,22 @@ use App\Controllers\AgendamentoController;
 
 $idRoteiro = $_REQUEST['rid']; 
 $agendamento = new AgendamentoController($idRoteiro);
-$arrTurmas = $agendamento->get_turmas();
+$publico_alvo = get_field( 'publico_alvo_roteiro', $idRoteiro );
+$publico_alvo = is_array( $publico_alvo ) ? $publico_alvo : (array) $publico_alvo;
+
+$arrTurmas = [];
+
+foreach( $publico_alvo as $item ) {
+    $ano_letivo = preg_replace( '/[^0-9]/', '', $item );
+    array_push( $arrTurmas, ...$agendamento->get_turmas( null, null, $ano_letivo ) );
+}
+
 if(!$arrTurmas){
     $arrTurmas = [];
 }
 
 ?>
-<div class="container">
+<div class="container" x-init="dados.siglaDRE = <?php echo esc_attr( wp_json_encode( $unidade_educacional_info->siglaDRE ?? '' ) ); ?>">
     <div class="row">
         <div class="col">
             <div class="form-group">
@@ -131,7 +140,7 @@ if(!$arrTurmas){
         </div>
         <div class="col">
             <div class="form-grouptxt-label">
-                <label class="txt-label-green" for="formGroupExampleInput">Turmas de 6° ano disponíveis</label>
+                <label class="txt-label-green" for="formGroupExampleInput">Turmas disponíveis</label>
                
                 <div class="row padding">
                         <?php foreach($arrTurmas as $turma): ?>

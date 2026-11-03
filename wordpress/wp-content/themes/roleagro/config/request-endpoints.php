@@ -359,19 +359,46 @@ function get_informacoes_servidor( $request ) {
 add_action( 'rest_api_init', 'set_agendamento' );
 
 function set_agendamento() {
+    register_rest_route( 'agendamento', '/disponibilidade-dia', [
+        'methods' => 'GET',
+        'permission_callback' => '__return_true',
+        'callback' => function ( $request ) {
+            $dia = $request->get_param( 'data' );
+            if ( !is_string( $dia ) ) {
+                return new WP_Error( 'data_invalida', 'Informe uma data válida.', ['status' => 400] );
+            }
+            $resultado = \App\Controllers\RoteiroController::get_disponibilidade_diaria( $dia );
+            if ( is_wp_error( $resultado ) ) {
+                return $resultado;
+            }
+            $resposta = new WP_REST_Response( $resultado );
+            $resposta->header( 'Cache-Control', 'no-store' );
+            return $resposta;
+        },
+    ] );
     register_rest_route( 'agendamento', '/salvar', array(
         'methods'  => 'POST',
         'callback' => 'get_informacoes_agendamento',
-        'permission_callback' => '__return_true' // Permissão para todos
+        'permission_callback' => function () {
+            if ( !is_user_logged_in() ) {
+                return new WP_Error( 'sessao_invalida', 'Sua sessão expirou. Entre novamente para realizar o agendamento.', ['status' => 401] );
+            }
+            return true;
+        }
     ));
 }
 function get_informacoes_agendamento( $request ) {
+    global $wpdb;
 
     $data = $request->get_json_params();
 
     $idRoteiro = absint($data['idRoteiro']);
+    $horta = valida_situacao_horta_ue( $idRoteiro );
+    if ( is_wp_error( $horta ) ) {
+        return $horta;
+    }
     $nomeRoteiro = sanitize_text_field($data['nomeRoteiro']);
-    $idUser = absint($data['idUser']);
+    $idUser = get_current_user_id();
 
     $dadosEducadores = $data['dadosEducadores'];
     $arrEducadores = [];
@@ -438,8 +465,45 @@ function get_informacoes_agendamento( $request ) {
         'post_author'   => $idUser
     );
 
-    // Inserir o novo post
-    $post_id = wp_insert_post($post_data);
+    $dia = $dadosAgendamento['dataAgendamento'] ?? '';
+    $data_visita = is_string( $dia ) ? DateTimeImmutable::createFromFormat( '!Y-m-d', $dia ) : false;
+    if ( !$data_visita || $data_visita->format( 'Y-m-d' ) !== $dia ) {
+        return new WP_Error( 'data_invalida', 'Informe uma data válida para o agendamento.', ['status' => 400] );
+    }
+
+    // Serializa a contagem e a reserva da vaga para esta data, em todos os roteiros.
+    $chave_lock = 'roleagro_dia_' . md5( DB_NAME . $wpdb->prefix . $dia );
+    $lock_obtido = $wpdb->get_var( $wpdb->prepare( 'SELECT GET_LOCK(%s, 5)', $chave_lock ) );
+    if ( (string) $lock_obtido !== '1' ) {
+        return new WP_Error( 'agendamento_ocupado', 'Não foi possível confirmar agora. Tente novamente.', ['status' => 503] );
+    }
+
+    try {
+        $disponibilidade = \App\Controllers\RoteiroController::get_disponibilidade_diaria( $dia );
+        if ( is_wp_error( $disponibilidade ) ) {
+            return $disponibilidade;
+        }
+        if ( !$disponibilidade['disponivel'] ) {
+            return new WP_Error(
+                'limite_diario_atingido',
+                'Esta data já atingiu o limite diário de agendamentos. Selecione outra data.',
+                ['status' => 409]
+            );
+        }
+
+        $post_id = wp_insert_post( $post_data, true );
+        if ( is_wp_error( $post_id ) ) {
+            return $post_id;
+        }
+
+        // A inscrição precisa entrar na contagem antes de liberar a próxima confirmação.
+        if ( !add_post_meta( $post_id, 'data_reservada_para_o_roteiro', $dia, true ) ) {
+            wp_delete_post( $post_id, true );
+            return new WP_Error( 'erro_reserva', 'Não foi possível reservar a data. Tente novamente.', ['status' => 500] );
+        }
+    } finally {
+        $wpdb->get_var( $wpdb->prepare( 'SELECT RELEASE_LOCK(%s)', $chave_lock ) );
+    }
 
     // Adicionar o ID do roteiro ao post
     add_post_meta($post_id, 'id_roteiro_inscricao', $idRoteiro);
@@ -450,7 +514,6 @@ function get_informacoes_agendamento( $request ) {
     add_post_meta($post_id, 'e-mail_de_contato_da_ue', $dadosAgendamento['emailUe']);
 
     add_post_meta($post_id, 'data_da_solicitacao', get_the_time('d/m/Y h:i:s', $post_id));
-    add_post_meta($post_id, 'data_reservada_para_o_roteiro', $dadosAgendamento['dataAgendamento']);
     add_post_meta($post_id, 'nome_do_responsavel_da_ue_pelo_agendamento', $dadosAgendamento['nomeResponsavel']);
     add_post_meta($post_id, 'telefone_de_contato_da_ue', $dadosAgendamento['telefoneUe']);
 	
@@ -469,6 +532,7 @@ function get_informacoes_agendamento( $request ) {
     add_post_meta($post_id, 'tipo_de_roteiro', $txtTags);
 
     add_post_meta($post_id, 'dre', $dadosAgendamento['dre']);
+    add_post_meta($post_id, 'sigla_dre', sanitize_text_field($dadosAgendamento['siglaDRE'] ?? ''));
 
     // Adicionar os dados dos educadores ao post
     add_post_meta($post_id, 'dados_educadores', $arrEducadores);
