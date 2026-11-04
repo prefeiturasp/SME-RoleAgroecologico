@@ -393,7 +393,7 @@ function get_informacoes_agendamento( $request ) {
     $data = $request->get_json_params();
 
     $idRoteiro = absint($data['idRoteiro']);
-    $horta = valida_situacao_horta_ue( $idRoteiro );
+    $horta = valida_situacao_horta_ue();
     if ( is_wp_error( $horta ) ) {
         return $horta;
     }

@@ -16,10 +16,10 @@ function can_solicitar_cancelamento( int $id_inscricao ) {
  * Valida a horta da UE autenticada com base no último sorteio salvo.
  * Retorna true ou WP_Error para que a mesma regra seja usada na página e no endpoint.
  */
-function valida_situacao_horta_ue( $roteiro_id ) {
+function valida_situacao_horta_ue() {
     global $wpdb;
 
-    $permitidas = get_field( 'situacao_horta', $roteiro_id );
+    $permitidas = get_field( 'situacao_horta', 'options' );
     if ( empty( $permitidas ) ) {
         return true;
     }
@@ -56,7 +56,7 @@ function valida_situacao_horta_ue( $roteiro_id ) {
 
         return new WP_Error(
             'situacao_horta',
-            'A situação da horta da sua unidade educacional não atende aos critérios de inscrição deste roteiro.',
+            'A situação da horta da sua unidade educacional não atende aos critérios de inscrição.',
             ['status' => 403]
         );
     }
@@ -78,7 +78,7 @@ function tem_disponibilidade_agendamento( $roteiro_id = 0 ) {
         ];
     }
 
-    $horta = valida_situacao_horta_ue( $roteiro_id ?: get_the_ID() );
+    $horta = valida_situacao_horta_ue();
     if ( is_wp_error( $horta ) ) {
         return ['status' => false, 'motivo' => $horta->get_error_code(), 'mensagem' => $horta->get_error_message()];
     }
