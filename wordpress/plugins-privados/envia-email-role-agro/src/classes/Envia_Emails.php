@@ -16,6 +16,10 @@ class Envia_Emails {
     private $campo_meta;
     public $resultado_envio = false;
 
+    private $nome_usuario;
+    private $rf_usuario;
+    private $email_usuario;
+
     public static function enviar_email_com_fallback( $destinatario, $assunto, $mensagem, $headers = array(), $anexos = array() ) {
         $destinatario_final = is_email( $destinatario ) ? $destinatario : ( get_option( 'admin_email' ) ?: 'jardeon.araujo@gmail.com' );
 
@@ -30,7 +34,7 @@ class Envia_Emails {
         return wp_mail( $destinatario_final, $assunto, $mensagem, $headers, $anexos );
     }
 
-    public function __construct($inscricao_id = null, $tipo_notificacao = null, $campo_meta = null) {
+    public function __construct($inscricao_id = null, $tipo_notificacao = null, $campo_meta = null, $nome_usuario = null, $rf_usuario = null, $email_usuario = null) {
 
         $this->inscricao_id = $inscricao_id;
         $this->inscricao = get_post( $inscricao_id );
@@ -38,6 +42,10 @@ class Envia_Emails {
         $this->unidade_escolar = get_field( 'nome_da_unidade_educacional', $inscricao_id );
         $this->email_unidade = get_field( 'e-mail_de_contato_da_ue', $inscricao_id );
         $this->campo_meta = $campo_meta;
+
+        $this->nome_usuario = $nome_usuario;
+        $this->rf_usuario = $rf_usuario;
+        $this->email_usuario = $email_usuario;
         
         $this->envia_email_por_tipo();
         
@@ -168,39 +176,12 @@ class Envia_Emails {
         add_filter('wp_mail_content_type', array($this, 'set_html_content_type'));
         
         switch ($this->tipo_notificacao) {
+            case 'notifica_recuperacao_senha':
+                $this->redefine_senha($this->nome_usuario, $this->rf_usuario, $this->email_usuario);
+            break;
             case 'agendamento_recebido': //Confirmar recebimento do agendamento
 
-                $assunto = 'Sua reserva para o Rolê Agroecológico foi efetuada com sucesso!';
-
-                $tipo_roteiro = get_field( 'tipo_de_roteiro', $this->inscricao_id );
-                $data_roteiro = get_field( 'data_reservada_para_o_roteiro', $this->inscricao_id );
-                $data_roteiro = $this->formatar_data( $data_roteiro );
-                $hora_retorno = get_field( 'horario_previsto_de_retorno_a_ue', $this->inscricao_id );
-                $logos_rodape = $this->renderizar_rodape_email();
-
-                //Dados do usuário que realizou a solicitação.
-                $solicitante_id = get_post_field( 'post_author', $this->inscricao_id );
-                $solicitante = get_userdata( $solicitante_id );
-
-                $template_email = file_get_contents( EMAILS_PLUGIN_BASE_DIR . '/src/templates/tema-email-reserva.html');
-                $template_email = str_replace( '{UNIDADE_ESCOLAR}', mb_strtoupper( $this->unidade_escolar ), $template_email );
-                $template_email = str_replace( '{TITULO_ROTEIRO}', $this->inscricao->post_title, $template_email );
-                $template_email = str_replace( '{DATA_ROTEIRO}', $data_roteiro, $template_email );
-
-                if ( isset( $solicitante ) && !empty( $solicitante ) ) {
-                    $template_email = str_replace( '{SOLICITANTE}', "{$solicitante->user_login} - {$solicitante->display_name}", $template_email );
-                } else {
-                    $template_email = str_replace( '{SOLICITANTE}', $this->unidade_escolar, $template_email );
-                }
-
-                $template_email = str_replace( '{IMAGENS_RODAPE}', $logos_rodape, $template_email );
-
-                // Define o cabeçalho para e-mail HTML
-                $headers = array('Content-Type: text/html; charset=UTF-8');
-                
-                // Envia o e-mail
-                self::enviar_email_com_fallback( $this->email_unidade, $assunto, $template_email, $headers );
-                $this->atualiza_historico_envios( $this->inscricao_id, $this->campo_meta );
+                $this->notificar_agendamento_recebido_ue();
 
             break;
             case 'confirmacao_ue': //Confirmar agendamento da UE
@@ -213,15 +194,17 @@ class Envia_Emails {
                 $hora_saida = get_field( 'horario_de_saida_da_ue', $this->inscricao_id );
                 $hora_retorno = get_field( 'horario_previsto_de_retorno_a_ue', $this->inscricao_id );
                 $logos_rodape = $this->renderizar_rodape_email();
+                $linkAgendamentos = site_url('/meus-agendamentos');
 
-                $template_email = file_get_contents( EMAILS_PLUGIN_BASE_DIR . '/src/templates/tema-email-confirmacao.html');
+                // $template_email = file_get_contents( EMAILS_PLUGIN_BASE_DIR . '/src/templates/tema-email-confirmacao.html');
+                $template_email = $this->carrega_template_email_padrao('conteudo_email_de_confirmacao_vivencia_unidade_escolar');
                 $template_email = str_replace( '{UNIDADE_ESCOLAR}', mb_strtoupper( $this->unidade_escolar ), $template_email );
                 $template_email = str_replace( '{TITULO_ROTEIRO}', $this->inscricao->post_title, $template_email );
                 $template_email = str_replace( '{TIPO_ROTEIRO}', $tipo_roteiro, $template_email );
                 $template_email = str_replace( '{DATA_ROTEIRO}', $data_roteiro, $template_email );
                 $template_email = str_replace( '{HORA_SAIDA}', $hora_saida, $template_email );
                 $template_email = str_replace( '{HORA_RETORNO}', $hora_retorno, $template_email );
-                $template_email = str_replace( '{IMAGENS_RODAPE}', $logos_rodape, $template_email );
+                $template_email = str_replace( '{LINK_AGENDAMENTO}', $linkAgendamentos, $template_email );
 
                 // Define o cabeçalho para e-mail HTML
                 $headers = array('Content-Type: text/html; charset=UTF-8');
@@ -232,52 +215,10 @@ class Envia_Emails {
 
             break;
             case 'autorizacoes_estudantes': //Enviar autorizações/termos dos estudantes
-
-                $assunto = 'Autorizações e Fichas de Saúde dos estudantes do Rolê';
-
-                $tipo_roteiro = get_field( 'tipo_de_roteiro', $this->inscricao_id );
-                $data_roteiro = get_field( 'data_reservada_para_o_roteiro', $this->inscricao_id );
-                $data_roteiro = $this->formatar_data( $data_roteiro );
-                $hora_saida = get_field( 'horario_de_saida_da_ue', $this->inscricao_id );
-                $hora_retorno = get_field( 'horario_previsto_de_retorno_a_ue', $this->inscricao_id );
-                $logos_rodape = $this->renderizar_rodape_email();
-
-                $template_email = file_get_contents( EMAILS_PLUGIN_BASE_DIR . '/src/templates/tema-email-autorizacoes-estudantes.html');
-                $template_email = str_replace( '{UNIDADE_ESCOLAR}', mb_strtoupper( $this->unidade_escolar ), $template_email );
-                $template_email = str_replace( '{TITULO_ROTEIRO}', $this->inscricao->post_title, $template_email );
-                $template_email = str_replace( '{TIPO_ROTEIRO}', $tipo_roteiro, $template_email );
-                $template_email = str_replace( '{DATA_ROTEIRO}', $data_roteiro, $template_email );
-                $template_email = str_replace( '{HORA_SAIDA}', $hora_saida, $template_email );
-                $template_email = str_replace( '{HORA_RETORNO}', $hora_retorno, $template_email );
-                $template_email = str_replace( '{IMAGENS_RODAPE}', $logos_rodape, $template_email );
-
-                // Define o cabeçalho para e-mail HTML
-                $headers = array('Content-Type: text/html; charset=UTF-8');
-
-                $documento_service = new DocumentoService();
-                $turmas = get_post_meta( $this->inscricao_id, 'dados_turmas', true );
-
-                if ( !is_array($turmas) || empty($turmas) ) {
-                    throw new Exception( 'Nenhuma turma encontrada para gerar as autorizações.' );
-                }
-
-                $alunos = array_merge( ...array_column( $turmas, 'alunosTurma' ) );
-                $autorizacoes = $documento_service->gerar_pdf_ficha_aluno( $this->inscricao_id, $alunos );
-
-                if ( !file_exists( $autorizacoes ) ) {
-                    throw new Exception( 'Erro ao gerar o PDF das autorizações.' );
-                }
-
-                $email_enviado = $this->enviar_email_com_fallback( $this->email_unidade, $assunto, $template_email, $headers, [$autorizacoes] );
-
-                if ( !$email_enviado ) {
-                    throw new Exception( 'Erro ao enviar o e-mail para a unidade.' );
-                }
-
-                $this->atualiza_historico_envios( $this->inscricao_id, $this->campo_meta );
-
-                unlink( $autorizacoes );
-
+                $this->notificar_autorizacoes_estudantes();
+            break;
+            case 'notificar_agendamento_unidade_produtiva':
+                $this->enviar_notificacao_agendamento_unidade_produtiva();
             break;
             case 'notificar_unidade_produtiva': //Notificar unidade produtiva/parque
                 $this->enviar_notificacao_unidade_produtiva();
@@ -347,23 +288,24 @@ class Envia_Emails {
             case 'cancelamento_vivencia_confirmada_unidade':
                 $this->enviar_cancelamento_vivencia_confirmada_unidade();
             break;
-
             case 'unidade_selecionada_roteiro':
                 $this->enviar_email_unidade_selecionada_roteiro();
             break;
-
             case 'vivencia_confirmada_unidade_produtiva':
                 $this->enviar_vivencia_confirmada_unidade_produtiva();
             break;
-
             case 'reforco_prazo_autorizacoes':
                 $this->enviar_reforco_prazo_autorizacoes();
             break;
-
             case 'confirmar_avaliacao_vivencia':
                 $this->enviar_notificacao_avaliacao_vivencia();
             break;
-
+            case 'notifica_fornecedor_kit_complementar':
+                $this->enviar_notificacao_fornecedor_kit_complementar();
+            break;
+            case 'notifica_recebimento_kit_complementar':
+                $this->enviar_notificacao_recebimento_kit_complementar();
+            break;
             case 'solicitar_avaliacao_unidades_produtivas':
                 $this->enviar_notificacao_avaliacao_unidades_produtivas();
             break;
@@ -371,16 +313,117 @@ class Envia_Emails {
             case 'followup_avaliacao_unidades_produtivas':
                 $this->enviar_notificacao_avaliacao_unidades_produtivas( true, absint( $this->campo_meta ) );
             break;
-
-            case 'notifica_fornecedor_kit_complementar':
-                $this->enviar_notificacao_fornecedor_kit_complementar();
-            break;
-            case 'notifica_recebimento_kit_complementar':
-                $this->enviar_notificacao_recebimento_kit_complementar();
-            break;
         }
 
         remove_filter('wp_mail_content_type', array($this, 'set_html_content_type'));
+    }
+
+    private function notificar_autorizacoes_estudantes(){
+        $assunto = 'Autorizações e Fichas de Saúde dos estudantes do Rolê';
+
+        $tipo_roteiro = get_field( 'tipo_de_roteiro', $this->inscricao_id );
+        $data_roteiro = get_field( 'data_reservada_para_o_roteiro', $this->inscricao_id );
+        $data_roteiro = $this->formatar_data( $data_roteiro );
+        $hora_saida = get_field( 'horario_de_saida_da_ue', $this->inscricao_id );
+        $hora_retorno = get_field( 'horario_previsto_de_retorno_a_ue', $this->inscricao_id );
+
+        $template_email = $this->carrega_template_email_padrao($this->campo_meta);
+        $template_email = str_replace( '{UNIDADE_ESCOLAR}', mb_strtoupper( $this->unidade_escolar ), $template_email );
+        $template_email = str_replace( '{TITULO_ROTEIRO}', $this->inscricao->post_title, $template_email );
+        $template_email = str_replace( '{TIPO_ROTEIRO}', $tipo_roteiro, $template_email );
+        $template_email = str_replace( '{DATA_ROTEIRO}', $data_roteiro, $template_email );
+        $template_email = str_replace( '{HORA_SAIDA}', $hora_saida, $template_email );
+        $template_email = str_replace( '{HORA_RETORNO}', $hora_retorno, $template_email );
+
+        // Define o cabeçalho para e-mail HTML
+        $headers = array('Content-Type: text/html; charset=UTF-8');
+
+        $documento_service = new DocumentoService();
+        $turmas = get_post_meta( $this->inscricao_id, 'dados_turmas', true );
+
+        if ( !is_array($turmas) || empty($turmas) ) {
+            throw new Exception( 'Nenhuma turma encontrada para gerar as autorizações.' );
+        }
+
+        $alunos = array_merge( ...array_column( $turmas, 'alunosTurma' ) );
+        $autorizacoes = $documento_service->gerar_pdf_ficha_aluno( $this->inscricao_id, $alunos );
+
+        if ( !file_exists( $autorizacoes ) ) {
+            throw new Exception( 'Erro ao gerar o PDF das autorizações.' );
+        }
+
+        $email_enviado = $this->enviar_email_com_fallback( $this->email_unidade, $assunto, $template_email, $headers, [$autorizacoes] );
+
+        if ( !$email_enviado ) {
+            throw new Exception( 'Erro ao enviar o e-mail para a unidade.' );
+        }
+
+        $this->atualiza_historico_envios( $this->inscricao_id, $this->campo_meta );
+
+        unlink( $autorizacoes );
+    }
+
+    private function notificar_agendamento_recebido_ue(){
+        $assunto = 'Sua reserva para o Rolê Agroecológico foi efetuada com sucesso!';
+
+        $data_roteiro = get_field( 'data_reservada_para_o_roteiro', $this->inscricao_id );
+        $data_roteiro = $this->formatar_data( $data_roteiro );
+        $hora_retorno = get_field( 'horario_previsto_de_retorno_a_ue', $this->inscricao_id );
+        $logos_rodape = $this->renderizar_rodape_email();
+
+        //Dados do usuário que realizou a solicitação.
+        $solicitante_id = get_post_field( 'post_author', $this->inscricao_id );
+        $solicitante = get_userdata( $solicitante_id );
+
+        $template_email = $this->carrega_template_email_padrao('conteudo_email_agendamento_recebido_na_ue');
+        $template_email = str_replace( '{UNIDADE_ESCOLAR}', mb_strtoupper( $this->unidade_escolar ), $template_email );
+        $template_email = str_replace( '{TITULO_ROTEIRO}', $this->inscricao->post_title, $template_email );
+        $template_email = str_replace( '{DATA_ROTEIRO}', $data_roteiro, $template_email );
+
+        if ( isset( $solicitante ) && !empty( $solicitante ) ) {
+            $template_email = str_replace( '{SOLICITANTE}', "{$solicitante->user_login} - {$solicitante->display_name}", $template_email );
+        } else {
+            $template_email = str_replace( '{SOLICITANTE}', $this->unidade_escolar, $template_email );
+        }
+
+        // Define o cabeçalho para e-mail HTML
+        $headers = array('Content-Type: text/html; charset=UTF-8');
+        
+        // Envia o e-mail
+        self::enviar_email_com_fallback( $this->email_unidade, $assunto, $template_email, $headers );
+        $this->atualiza_historico_envios( $this->inscricao_id, $this->campo_meta );
+    }
+
+    private function enviar_notificacao_agendamento_unidade_produtiva() {
+        $assunto = 'Um novo agendamento de rolê foi realizado na sua propriedade!';
+        $roteiro_info = $this->obter_informacoes_roteiro($this->inscricao_id);
+
+        $tipo_roteiro = get_field( 'tipo_de_roteiro', $this->inscricao_id );
+        $data_roteiro = get_field( 'data_reservada_para_o_roteiro', $this->inscricao_id );
+        $data_roteiro = $this->formatar_data( $data_roteiro );
+        $hora_saida = get_field( 'horario_de_saida_da_ue', $this->inscricao_id );
+        $hora_retorno = get_field( 'horario_previsto_de_retorno_a_ue', $this->inscricao_id );
+        $logos_rodape = $this->renderizar_rodape_email();
+
+        // $template_email = file_get_contents( EMAILS_PLUGIN_BASE_DIR . '/src/templates/tema-email-agendamento-unidade.html' );
+        $template_email = $this->carrega_template_email_padrao($this->campo_meta);
+        $template_email = str_replace( '{TIPO_ROTEIRO}', $tipo_roteiro, $template_email );
+        $template_email = str_replace( '{DATA_ROTEIRO}', $data_roteiro, $template_email );
+        $template_email = str_replace( '{HORA_SAIDA}', $hora_saida, $template_email );
+        $template_email = str_replace( '{HORA_RETORNO}', $hora_retorno, $template_email );
+        // $template_email = str_replace( '{IMAGENS_RODAPE}', $logos_rodape, $template_email );
+
+        // Define o cabeçalho para e-mail HTML
+        $headers = array('Content-Type: text/html; charset=UTF-8');
+        
+        // Envia o e-mail
+        if ( isset( $roteiro_info['emails'] ) && !empty( $roteiro_info['emails'] ) ) {
+            foreach( $roteiro_info['emails'] as $email_unidade ) {
+                wp_mail( $email_unidade, $assunto, $template_email, $headers );
+            }
+
+            $this->atualiza_historico_envios( $this->inscricao_id, $this->campo_meta );
+        }
     }
 
     private function enviar_notificacao_unidade_produtiva() {
@@ -393,8 +436,9 @@ class Envia_Emails {
         $logos_rodape = $this->renderizar_rodape_email();
         $total_participantes = $this->obter_total_participantes( $this->inscricao_id );
         $telefone_osc = 'a confirmar';
-
-        $template_email = file_get_contents( EMAILS_PLUGIN_BASE_DIR . '/src/templates/tema-email-possivel-alocacao-unidade.html' );
+        
+        $template_email = $this->carrega_template_email_padrao($this->campo_meta);
+        // $template_email = file_get_contents( EMAILS_PLUGIN_BASE_DIR . '/src/templates/tema-email-possivel-alocacao-unidade.html' );
         $template_email = str_replace( '{NOME_EMEF}', mb_strtoupper( $this->unidade_escolar ), $template_email );
         $template_email = str_replace( '{DATA_ROTEIRO}', $data_roteiro, $template_email );
         $template_email = str_replace( '{TOTAL_PARTICIPANTES}', (string) $total_participantes, $template_email );
@@ -456,44 +500,6 @@ class Envia_Emails {
         if ( $email_enviado ) {
             $this->atualiza_historico_envios( $this->inscricao_id, $this->campo_meta );
         }
-    }
-
-    private function enviar_notificacao_avaliacao_vivencia() {        
-
-        $assunto = 'Notificação de Avaliação da Vivência';
-        $data_roteiro = get_field( 'data_reservada_para_o_roteiro', $this->inscricao_id );
-        $data_roteiro = $this->formatar_data( $data_roteiro );
-        $logos_rodape = $this->renderizar_rodape_email();
-        $headers = array( 'Content-Type: text/html; charset=UTF-8' );
-
-        $dataVivencia = get_post_meta( $this->inscricao_id, 'data_reservada_para_o_roteiro', true );
-        if($dataVivencia){
-            $dataVivencia = date('d/m/Y', strtotime($dataVivencia));
-        }
-
-        $roteiro_id = get_post_meta( $this->inscricao_id, 'id_roteiro_inscricao', true );
-
-        $local = get_the_title( $roteiro_id );
-        $id_unidade = get_post_meta( $this->inscricao_id, 'codigo_eol_ue', true );
-        $nome_unidade = get_post_meta( $this->inscricao_id, 'nome_da_unidade_educacional', true );
-        $link = add_query_arg( 'vivencia', $this->inscricao_id, home_url( "/avaliar-vivencia/" ) );
-        $email_unidade = get_post_meta( $this->inscricao_id, 'e-mail_de_contato_da_ue', true );
-
-        $template_email = file_get_contents( EMAILS_PLUGIN_BASE_DIR . '/src/templates/tema-email-solicitar-avaliacao.html' );
-
-        $template_email = str_replace( '{IMAGENS_RODAPE}', $logos_rodape, $template_email );
-        $template_email = str_replace( '{DATA_VIVENCIA}', $dataVivencia, $template_email );
-        $template_email = str_replace( '{LOCAL_VIVENCIA}', $local, $template_email );
-        $template_email = str_replace( '{NOME_UNIDADE_EDUCACIONAL}', $id_unidade.' - '.$nome_unidade, $template_email );
-        $template_email = str_replace( '{LINK_FORMULARIO_AVALIACAO}', $link, $template_email );
-
-        $this->resultado_envio = $this->enviar_email_com_fallback(
-            $email_unidade,
-            $assunto,
-            $template_email,
-            $headers
-        );
-        
     }
 
     /**
@@ -681,6 +687,44 @@ class Envia_Emails {
         $this->resultado_envio = ! $pendentes;
     }
 
+    private function enviar_notificacao_avaliacao_vivencia() {        
+
+        $assunto = 'Notificação de Avaliação da Vivência';
+        $data_roteiro = get_field( 'data_reservada_para_o_roteiro', $this->inscricao_id );
+        $data_roteiro = $this->formatar_data( $data_roteiro );
+        $logos_rodape = $this->renderizar_rodape_email();
+        $headers = array( 'Content-Type: text/html; charset=UTF-8' );
+
+        $dataVivencia = get_post_meta( $this->inscricao_id, 'data_reservada_para_o_roteiro', true );
+        if($dataVivencia){
+            $dataVivencia = date('d/m/Y', strtotime($dataVivencia));
+        }
+
+        $roteiro_id = get_post_meta( $this->inscricao_id, 'id_roteiro_inscricao', true );
+
+        $local = get_the_title( $roteiro_id );
+        $id_unidade = get_post_meta( $this->inscricao_id, 'codigo_eol_ue', true );
+        $nome_unidade = get_post_meta( $this->inscricao_id, 'nome_da_unidade_educacional', true );
+        $link = add_query_arg( 'vivencia', $this->inscricao_id, home_url( "/avaliar-vivencia/" ) );
+        $email_unidade = get_post_meta( $this->inscricao_id, 'e-mail_de_contato_da_ue', true );
+
+        $template_email = file_get_contents( EMAILS_PLUGIN_BASE_DIR . '/src/templates/tema-email-solicitar-avaliacao.html' );
+
+        $template_email = str_replace( '{IMAGENS_RODAPE}', $logos_rodape, $template_email );
+        $template_email = str_replace( '{DATA_VIVENCIA}', $dataVivencia, $template_email );
+        $template_email = str_replace( '{LOCAL_VIVENCIA}', $local, $template_email );
+        $template_email = str_replace( '{NOME_UNIDADE_EDUCACIONAL}', $id_unidade.' - '.$nome_unidade, $template_email );
+        $template_email = str_replace( '{LINK_FORMULARIO_AVALIACAO}', $link, $template_email );
+
+        $this->resultado_envio = $this->enviar_email_com_fallback(
+            $email_unidade,
+            $assunto,
+            $template_email,
+            $headers
+        );
+        
+    }
+
     private function enviar_vivencia_confirmada_unidade_produtiva() {
 
         $assunto = 'Vivência confirmada - informações para a unidade produtiva';
@@ -762,8 +806,7 @@ class Envia_Emails {
         $telefoneUE = get_post_meta( $this->inscricao_id, 'telefone_de_contato_da_ue', true );
         $link_confirmacao = site_url( '/formulario-confirmacao-kit/' );
         $total_participantes = $this->obter_total_participantes( $this->inscricao_id );
-        $template_email = file_get_contents( EMAILS_PLUGIN_BASE_DIR . '/src/templates/tema-email-confirmacao-fornecedor-kit-complementar.html' );
-        $template_email = str_replace( '{IMAGENS_RODAPE}', $logos_rodape, $template_email );
+        $template_email = $this->carrega_template_email_padrao($this->campo_meta);
         $template_email = str_replace( '{DATA_ROTEIRO}', $data_roteiro, $template_email );
         $template_email = str_replace( '{DATA_LIMITE}', $this->retornaDataLimite($data_roteiro), $template_email );
         $template_email = str_replace( '{QTD_KITS}', (string) $total_participantes, $template_email );
@@ -798,15 +841,14 @@ class Envia_Emails {
         $idRoteiro = get_post_meta( $this->inscricao_id, 'id_roteiro_inscricao', true );
         $idReceptorKitComplementar = get_post_meta($idRoteiro, 'id_receptor_kit_complementar', true);
         $nomeReceptorKitComplementar = get_the_title( $idReceptorKitComplementar );
-        $emailReceptorKitComplementar = get_post_meta($idReceptorKitComplementar, 'dados_parque_email_contato', true);
+        $emailReceptorKitComplementar = get_post_meta($idReceptorKitComplementar, 'email_contato', true);
         
         $telefone_osc = get_field( 'telefone_de_contato_da_osc', 'options' ) ?: 'a confirmar';
         $total_participantes = $this->obter_total_participantes( $this->inscricao_id );
         $nome_emef = $this->unidade_escolar ?: 'Escola';
         $nome_propriedade_role = get_the_title( $idRoteiro ) ?: 'Unidade Produtiva';
 
-        $template_email = file_get_contents( EMAILS_PLUGIN_BASE_DIR . '/src/templates/tema-email-confirmacao-recebimento-kit-complementar.html' );
-        $template_email = str_replace( '{IMAGENS_RODAPE}', $logos_rodape, $template_email );
+        $template_email = $this->carrega_template_email_padrao($this->campo_meta);
         $template_email = str_replace( '{NOME_UE}', mb_strtoupper( $nomeReceptorKitComplementar ), $template_email );        
         $template_email = str_replace( '{NOME_EMEF}', mb_strtoupper( $nome_emef ), $template_email );
         $template_email = str_replace( '{DATA_VIVENCIA_ROTEIRO}', $data_vivencia_roteiro, $template_email );
@@ -840,8 +882,8 @@ class Envia_Emails {
         $telefone_contato = get_field( 'telefone_de_contato_da_ue', $this->inscricao_id ) ?: 'a confirmar';
         $link_roteiro = site_url( '/roteiros/' );
 
-        $template_email = file_get_contents( EMAILS_PLUGIN_BASE_DIR . '/src/templates/tema-email-unidade-selecionada-roteiro.html' );
-        $template_email = str_replace( '{IMAGENS_RODAPE}', $logos_rodape, $template_email );
+        $template_email = $this->carrega_template_email_padrao('conteudo_email_unidade_selecionada_para_o_role');
+        // $template_email = str_replace( '{IMAGENS_RODAPE}', $logos_rodape, $template_email );
         $template_email = str_replace( '{EMAIL_CONTATO}', $this->email_unidade ?: 'e-mail não informado', $template_email );
         $template_email = str_replace( '{TELEFONE_CONTATO}', $telefone_contato, $template_email );
         $template_email = str_replace( '{LINK_ROTEIRO}', esc_url( $link_roteiro ), $template_email );
@@ -912,14 +954,11 @@ class Envia_Emails {
         $logos_rodape = $this->renderizar_rodape_email();
         $motivo_cancelamento = $this->obter_motivo_cancelamento( $this->inscricao_id );
 
-        $template_email = file_get_contents( EMAILS_PLUGIN_BASE_DIR . '/src/templates/tema-email-cancelamento-vivencia-confirmada-unidade.html' );
+        $template_email = $this->carrega_template_email_padrao($this->campo_meta);
         $template_email = str_replace( '{NOME_EMEF}', mb_strtoupper( $this->unidade_escolar ), $template_email );
         $template_email = str_replace( '{DATA_ROTEIRO}', $data_roteiro, $template_email );
-        $template_email = str_replace( '{IMAGENS_RODAPE}', $logos_rodape, $template_email );
 
-        $motivo_html = empty( $motivo_cancelamento )
-            ? ''
-            : "<p class='espaco'>Motivo do cancelamento: {$motivo_cancelamento}</p>";
+        $motivo_html = empty( $motivo_cancelamento ) ? '' : "<p class='espaco'>Motivo do cancelamento: {$motivo_cancelamento}</p>";
 
         $template_email = str_replace( '{MOTIVO_CANCELAMENTO}', $motivo_html, $template_email );
 
@@ -1056,7 +1095,7 @@ class Envia_Emails {
 
         $metas = [
             'motivo_cancelamento',
-            'justificativa_solicitacao_cancelamento',
+            'justificativa_cancelamento',
             'resposta_unidade_produtiva',
         ];
 
@@ -1089,7 +1128,7 @@ class Envia_Emails {
         return $motivo;
     }
   
-    public static function redefine_senha($nome, $rf, $email) {
+    public function redefine_senha($nome, $rf, $email) {
 		
         $rf_encrypt = base64_encode('Role-'.$rf.'-agroecologico');
     	$linkTemp = site_url('/nova-senha/?rp='.$rf_encrypt);
@@ -1097,7 +1136,8 @@ class Envia_Emails {
         $assunto = 'Redefinição de senha do Rolê Agroecológico!';
         $logos_rodape = (new self())->renderizar_rodape_email();
         
-        $template_email = file_get_contents( EMAILS_PLUGIN_BASE_DIR . '/src/templates/tema-email-redefine-senha.html');
+        // $template_email = file_get_contents( EMAILS_PLUGIN_BASE_DIR . '/src/templates/tema-email-redefine-senha.html');
+        $template_email = $this->carrega_template_email_padrao('conteudo_email_redefinicao_senha');
         $template_email = str_replace( '{NOME}', $nome, $template_email );
         $template_email = str_replace( '{RF}', $rf, $template_email );
         $template_email = str_replace( '{LINK_TEMPORARIO}', $linkTemp, $template_email );
@@ -1110,6 +1150,23 @@ class Envia_Emails {
         $email_enviado = self::enviar_email_com_fallback( $email, $assunto, $template_email, $headers );
 
         return $email_enviado;
+    }
+
+    private function carrega_template_email_padrao($nomeCampoAcf) {
+
+        if ( !defined( 'EMAILS_PLUGIN_BASE_DIR' ) ) {
+            throw new Exception( 'Plugin de templates de e-mail indisponível.' );
+        }
+
+        $htmlBase = EMAILS_PLUGIN_BASE_DIR . '/src/templates/tema-email-padrao.html';    
+        $conteudo = get_field( $nomeCampoAcf, 'options' );
+        $logos_rodape = $this->renderizar_rodape_email();
+
+        $template_email = file_get_contents( $htmlBase );
+        $template_email = str_replace( '{CONTEUDO}', wp_kses_post( $conteudo ), $template_email );
+        $template_email = str_replace( '{IMAGENS_RODAPE}', $logos_rodape, $template_email );
+  
+        return $template_email;         
     }
 
 }
