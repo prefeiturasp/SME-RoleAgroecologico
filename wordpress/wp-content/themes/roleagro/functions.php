@@ -121,35 +121,12 @@ function roleagro_registrar_campos_roteiro_inscricoes() {
                     'nao_informado' => 'Não informado',
                 ],
                 'wrapper' => [
-                    'width' => '50',
+                    'width' => '100',
 
                 ],
                 'default_value' => 'nao_informado',
                 'layout' => 'horizontal',
                 'return_format' => 'value',
-            ],
-            [
-                'key' => 'field_situacao_horta',
-                'label' => 'Situação da horta das unidades',
-                'name' => 'situacao_horta',
-                'type' => 'select',
-                'instructions' => 'Defina o status da situação das hortas das UEs que podem realizar a inscrição.',
-                'choices' => [
-                    'sim' => 'Sim',
-                    'nao' => 'Não',
-                    'nao_informado' => 'Não informado',
-                ],
-                'wrapper' => [
-                    'width' => '50',
-
-                ],
-                'default_value' => [],
-                'required' => 0,
-                'allow_null' => 1,
-                'multiple' => 1,
-                'ui' => 1,
-                'return_format' => 'value',
-                'ajax' => 0,
             ],
             [
                 'key' => 'field_roteiro_vagas_disponiveis',
