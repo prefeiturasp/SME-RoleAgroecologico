@@ -57,7 +57,7 @@ class Envia_Emails {
             throw new Exception( 'Inscrição não encontrada.' );
         }
 
-        $template_path = EMAILS_PLUGIN_BASE_DIR . '/src/templates/tema-email-vivencia-confirmada-unidade-produtiva.html';
+        $template_path = self::carrega_template_email_padrao('conteudo_email_de_confirmacao_vivencia_unidade_produtiva');
         if ( ! file_exists( $template_path ) ) {
             throw new Exception( 'Template HTML da vivência confirmada não encontrado.' );
         }
@@ -729,7 +729,7 @@ class Envia_Emails {
         $nome_emef = $this->unidade_escolar ?: 'Escola';
         $nome_propriedade = get_the_title( get_post_meta( $this->inscricao_id, 'id_roteiro_inscricao', true ) ) ?: 'Unidade Produtiva';
 
-        $template_email = file_get_contents( EMAILS_PLUGIN_BASE_DIR . '/src/templates/tema-email-vivencia-confirmada-unidade-produtiva.html' );
+        $template_email = $this->carrega_template_email_padrao('conteudo_email_de_confirmacao_vivencia_unidade_produtiva');
         $template_email = str_replace( '{IMAGENS_RODAPE}', $logos_rodape, $template_email );
         $template_email = str_replace( '{NOME_EMEF}', mb_strtoupper( $nome_emef ), $template_email );
         $template_email = str_replace( '{DATA_ROTEIRO}', $data_roteiro, $template_email );
