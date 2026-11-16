@@ -27,11 +27,11 @@ class AgendamentoNotificacoesController {
             ],
             'autorizacoes_estudantes' => [
                 'campo'    => 'enviar_autorizacoestermos_dos_estudantes',
-                'meta'     => 'autorizacoes',
+                'meta'     => 'conteudo_email_autorizacoes_estudantes', //autorizacoes
             ],
             'notificar_unidade_produtiva' => [
                 'campo'    => 'notificar_a_unidade_produtiva_parque',
-                'meta'     => 'confirmar_agendamento_up',
+                'meta'     => 'conteudo_email_possivel_alocacao_up',//confirmar_agendamento_up
             ],
             'cancelamento_escola' => [
                 'campo'    => 'notificar_cancelamento_do_roteiro_a_ue',
