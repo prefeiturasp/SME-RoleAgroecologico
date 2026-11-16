@@ -387,6 +387,7 @@ function set_agendamento() {
         }
     ));
 }
+
 function get_informacoes_agendamento( $request ) {
     global $wpdb;
 
@@ -456,7 +457,6 @@ function get_informacoes_agendamento( $request ) {
     
     $dadosTurmas = $data['dadosTurmas'];
     $dadosAgendamento = $data['dadosAgendamento'];
-
     // Dados do novo post
     $post_data = array(
         'post_title'    => $nomeRoteiro,
@@ -505,6 +505,9 @@ function get_informacoes_agendamento( $request ) {
         $wpdb->get_var( $wpdb->prepare( 'SELECT RELEASE_LOCK(%s)', $chave_lock ) );
     }
 
+    // Inserir o novo post
+    // $post_id = wp_insert_post($post_data);
+
     // Adicionar o ID do roteiro ao post
     add_post_meta($post_id, 'id_roteiro_inscricao', $idRoteiro);
     // Adicionar os dados do agendamento ao post
@@ -514,6 +517,7 @@ function get_informacoes_agendamento( $request ) {
     add_post_meta($post_id, 'e-mail_de_contato_da_ue', $dadosAgendamento['emailUe']);
 
     add_post_meta($post_id, 'data_da_solicitacao', get_the_time('d/m/Y h:i:s', $post_id));
+    add_post_meta($post_id, 'data_reservada_para_o_roteiro', $dadosAgendamento['dataAgendamento']);
     add_post_meta($post_id, 'nome_do_responsavel_da_ue_pelo_agendamento', $dadosAgendamento['nomeResponsavel']);
     add_post_meta($post_id, 'telefone_de_contato_da_ue', $dadosAgendamento['telefoneUe']);
 	
@@ -528,12 +532,11 @@ function get_informacoes_agendamento( $request ) {
         $txtTags .= $tag->name . ' - ';
     }
     $txtTags = substr($txtTags, 0, -3);
-
+    
     add_post_meta($post_id, 'tipo_de_roteiro', $txtTags);
 
     add_post_meta($post_id, 'dre', $dadosAgendamento['dre']);
     add_post_meta($post_id, 'sigla_dre', sanitize_text_field($dadosAgendamento['siglaDRE'] ?? ''));
-
     // Adicionar os dados dos educadores ao post
     add_post_meta($post_id, 'dados_educadores', $arrEducadores);
     // Adicionar os dados dos acompanhantes ao post
@@ -546,11 +549,11 @@ function get_informacoes_agendamento( $request ) {
     salvaResumoInscricoes($post_id, $data['dadosTurmas'], $arrEducadores, $arrAcompanhantes);
 
     //Envia o e-mail de confirmação do recebimento do agendamento
-    new Envia_Emails( $post_id, 'agendamento_recebido', 'confirmar_recebimento' );
+    new Envia_Emails( $post_id, 'agendamento_recebido', 'confirmar_recebimento', 'conteudo_email_agendamento_recebido_na_ue' );
 
     // Dispara automaticamente a notificação da unidade produtiva ao criar a inscrição,
     // para que o histórico de notificação seja persistido com o mesmo fluxo de envio.
-    new Envia_Emails( $post_id, 'notificar_unidade_produtiva', 'confirmar_agendamento_up' );
+    new Envia_Emails( $post_id, 'notificar_unidade_produtiva', 'conteudo_email_possivel_alocacao_up' );//conteudo_email_possivel_alocacao_up
 
     // Retornar o ID do novo post
     wp_send_json_success($data['dadosTurmas']);
@@ -988,8 +991,12 @@ function ajax_busca_set_lista_presenca() {
         $email_unidades = new Envia_Emails(
             $post_id,
             'solicitar_avaliacao_unidades_produtivas'
-        );        
+        );   
 
+    } else if($_SERVER['REQUEST_METHOD'] == 'POST'){
+        $post_id = sanitize_text_field($_POST['post_id']); // Pega o id do post enviado
+        $obsRole = isset( $_POST['obsRole'] ) ? sanitize_text_field( $_POST['obsRole'], 'sanitize_text_field' ): null;
+        update_post_meta($post_id, 'observacoes_do_role', $obsRole);
         wp_send_json_success([
             'msg' => 'Informações salvas com sucesso!',
             'url_avaliacao' => add_query_arg(
@@ -998,8 +1005,7 @@ function ajax_busca_set_lista_presenca() {
                 home_url( '/avaliar-vivencia/' )
             )
         ]);
-
-        wp_die();
+        wp_die(); // Termina a execução
     }
 }
 
@@ -1009,7 +1015,7 @@ function salva_arquivo_lista_presenca() {
         $post_id = sanitize_text_field($_POST['post_id']); // Pega o id do post enviado
         $arquivo = $_FILES['arquivo'];
         enviaDocListaPresenca($post_id, $arquivo);
-    }
+    } 
 }
 
 function enviaDocListaPresenca($post_id, $arquivo){

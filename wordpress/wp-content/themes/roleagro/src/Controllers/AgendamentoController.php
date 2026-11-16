@@ -524,7 +524,7 @@ class AgendamentoController {
             update_post_meta( $post_id, 'motivo_cancelamento', $motivo_cancelamento );
 
             try {
-                new Envia_Emails( $post_id, 'cancelamento_vivencia_confirmada_unidade', 'cancelamento_unidade' );
+                new Envia_Emails( $post_id, 'cancelamento_vivencia_confirmada_unidade', 'conteudo_email_cancelamento_vivencia_confirmada_up' );//cancelamento_unidade
             } catch ( Exception $e ) {
                 set_transient( 'autorizacoes_erro_' . get_current_user_id(), $e->getMessage(), 30 );
                 return $novo_valor;
@@ -537,11 +537,11 @@ class AgendamentoController {
     private function resolver_motivo_cancelamento( $post_id ) {
 
         $motivo = get_post_meta( $post_id, 'motivo_cancelamento', true );
-        if ( ! empty( $motivo ) ) {
+        if ( !empty( $motivo ) ) {
             return sanitize_text_field( $motivo );
         }
 
-        $justificativa = get_post_meta( $post_id, 'justificativa_solicitacao_cancelamento', true );
+        $justificativa = get_post_meta( $post_id, 'justificativa_cancelamento', true );
         $resposta_unidade = get_post_meta( $post_id, 'resposta_unidade_produtiva', true );
 
         $texto = trim( (string) $justificativa . ' ' . (string) $resposta_unidade );
