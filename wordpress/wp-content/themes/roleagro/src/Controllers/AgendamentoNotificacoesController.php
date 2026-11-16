@@ -248,7 +248,7 @@ class AgendamentoNotificacoesController {
         if ( !defined( 'EMAILS_PLUGIN_BASE_DIR' ) ) {
             throw new Exception( 'Plugin de templates de e-mail indisponível.' );
         }
-        $base = EMAILS_PLUGIN_BASE_DIR . '/src/templates/tema-lembrete-kit-complementar.html';
+        $base = EMAILS_PLUGIN_BASE_DIR . '/src/templates/tema-email-padrao.html';
         if ( !is_readable( $base ) ) {
             throw new Exception( 'Template do lembrete de kit complementar indisponível.' );
         }
@@ -260,20 +260,7 @@ class AgendamentoNotificacoesController {
         }
 
         if ( $conteudo_html === null ) {
-            $conteudo_html = <<<'HTML'
-                <p class="espaco">Prezada equipe da OSC,</p>
-                <p class="espaco">A vivência da inscrição <strong>#{INSCRICAO_ID}</strong> ocorrerá em <strong>{DIAS_ANTECEDENCIA} dias</strong> e possui notificações pendentes sobre o kit complementar.</p>
-                <p class="espaco lista">
-                    <strong>Roteiro:</strong> {TITULO_ROTEIRO}<br>
-                    <strong>Data da vivência:</strong> {DATA_VIVENCIA}<br>
-                    <strong>Unidade educacional:</strong> {NOME_UNIDADE_EDUCACIONAL}<br>
-                    <strong>Fornecedor complementar:</strong> {NOME_FORNECEDOR_COMPLEMENTAR}
-                </p>
-                <p class="espaco">Notificações pendentes:</p>
-                {NOTIFICACOES_PENDENTES}
-                <p class="espaco">Acesse a inscrição para realizar o envio das notificações pendentes.</p>
-                <p class="destaque"><a href="{LINK_INSCRICAO}">Acessar inscrição</a></p>
-            HTML;
+            $conteudo_html = get_field( 'conteudo_email_lembrete_kit_complementar', 'options' );
         }
 
         $template = str_replace( '{CONTEUDO}', wp_kses_post( $conteudo_html ), $template );
